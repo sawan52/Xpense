@@ -7,12 +7,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,17 +22,23 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.model.Category
+import com.example.xpense.ui.components.ExpenseDialog
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
-    val expenses by viewModel.allExpenses.collectAsState()
-    val totalAmount by viewModel.totalExpense.collectAsState()
-    val summary by viewModel.categorySummary.collectAsState()
+    val expenses by viewModel.filteredExpenses.collectAsState()
+    val totalAmount by viewModel.totalForSelectedMonth.collectAsState()
+    val summary by viewModel.categorySummaryForSelectedMonth.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+    val availableMonths by viewModel.availableMonths.collectAsState()
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+
+    var showEditDialog by remember { mutableStateOf(false) }
+    var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
 
     BackHandler(enabled = isSelectionMode) {
         viewModel.exitSelectionMode()
@@ -41,16 +47,28 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (!isSelectionMode) "Xpense Tracker" else "${selectedIds.size} Selected") },
+                title = { Text(if (!isSelectionMode) "Monthly Tracker" else "${selectedIds.size} Selected") },
                 navigationIcon = {
                     if (isSelectionMode) {
                         IconButton(onClick = { viewModel.exitSelectionMode() }) {
                             Icon(Icons.Default.Close, contentDescription = "Exit Selection")
                         }
+                    } else {
+                        IconButton(onClick = { viewModel.navigateTo(Screen.HOME) }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Summary")
+                        }
                     }
                 },
                 actions = {
                     if (isSelectionMode) {
+                        if (selectedIds.size == 1) {
+                            IconButton(onClick = {
+                                expenseToEdit = expenses.find { it.id == selectedIds.first() }
+                                showEditDialog = true
+                            }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Selected")
+                            }
+                        }
                         IconButton(onClick = { viewModel.deleteSelected() }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete Selected")
                         }
@@ -64,10 +82,29 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            // Tab Row for Months
+            if (availableMonths.isNotEmpty()) {
+                val selectedIndex = availableMonths.indexOf(selectedMonth).coerceAtLeast(0)
+                ScrollableTabRow(
+                    selectedTabIndex = selectedIndex,
+                    edgePadding = 16.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    divider = {}
+                ) {
+                    availableMonths.forEachIndexed { index, month ->
+                        Tab(
+                            selected = selectedMonth == month,
+                            onClick = { viewModel.selectMonth(month) },
+                            text = { Text(month) }
+                        )
+                    }
+                }
+            }
+
             SummaryCard(totalAmount, summary)
             
             Text(
-                "Recent Transactions",
+                "Transactions for $selectedMonth",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
@@ -85,6 +122,23 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                     )
                 }
             }
+        }
+
+        if (showEditDialog) {
+            ExpenseDialog(
+                expense = expenseToEdit,
+                onDismiss = { 
+                    showEditDialog = false
+                    viewModel.exitSelectionMode()
+                },
+                onConfirm = { amount, merchant, category, date ->
+                    expenseToEdit?.let { 
+                        viewModel.updateExpense(it.id, amount, merchant, category, date)
+                    }
+                    showEditDialog = false
+                    viewModel.exitSelectionMode()
+                }
+            )
         }
     }
 }

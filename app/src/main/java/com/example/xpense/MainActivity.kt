@@ -8,10 +8,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -19,7 +21,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xpense.ui.ExpenseScreen
+import com.example.xpense.ui.ExpenseViewModel
+import com.example.xpense.ui.Screen
+import com.example.xpense.ui.SummaryScreen
 import com.example.xpense.ui.theme.XpenseTheme
 
 class MainActivity : ComponentActivity() {
@@ -28,6 +34,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             XpenseTheme {
+                val viewModel: ExpenseViewModel = viewModel()
+                val currentScreen by viewModel.currentScreen.collectAsState()
                 val context = LocalContext.current
                 var hasSmsPermission by remember {
                     mutableStateOf(
@@ -52,7 +60,12 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     if (hasSmsPermission) {
-                        ExpenseScreen()
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            when (currentScreen) {
+                                Screen.HOME -> SummaryScreen(viewModel)
+                                Screen.TRACKER -> ExpenseScreen(viewModel)
+                            }
+                        }
                     }
                 }
             }
