@@ -1,9 +1,13 @@
 package com.example.xpense.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material. icons.Icons
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -27,14 +31,29 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
     val expenses by viewModel.allExpenses.collectAsState()
     val totalAmount by viewModel.totalExpense.collectAsState()
     val summary by viewModel.categorySummary.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
+
+    BackHandler(enabled = isSelectionMode) {
+        viewModel.exitSelectionMode()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Xpense Tracker") },
+                title = { Text(if (!isSelectionMode) "Xpense Tracker" else "${selectedIds.size} Selected") },
+                navigationIcon = {
+                    if (isSelectionMode) {
+                        IconButton(onClick = { viewModel.exitSelectionMode() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Exit Selection")
+                        }
+                    }
+                },
                 actions = {
-                    IconButton(onClick = { viewModel.clearAll() }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Clear All")
+                    if (isSelectionMode) {
+                        IconButton(onClick = { viewModel.deleteSelected() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Selected")
+                        }
                     }
                 }
             )
@@ -56,8 +75,14 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
             LazyColumn(
                 modifier = Modifier.weight(1f)
             ) {
-                items(expenses) { expense ->
-                    ExpenseItem(expense)
+                items(expenses, key = { it.id }) { expense ->
+                    ExpenseItem(
+                        expense = expense,
+                        isSelected = selectedIds.contains(expense.id),
+                        isSelectionMode = isSelectionMode,
+                        onToggle = { viewModel.toggleSelection(expense.id) },
+                        onLongClick = { viewModel.enterSelectionMode(expense.id) }
+                    )
                 }
             }
         }
@@ -91,19 +116,38 @@ fun SummaryCard(total: Double, summary: Map<Category, Double>) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ExpenseItem(expense: Expense) {
+fun ExpenseItem(
+    expense: Expense,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
+    onToggle: () -> Unit,
+    onLongClick: () -> Unit
+) {
     ListItem(
+        modifier = Modifier.combinedClickable(
+            onClick = { if (isSelectionMode) onToggle() },
+            onLongClick = { onLongClick() }
+        ),
         headlineContent = { Text(expense.merchant) },
         supportingContent = { 
             Text("${expense.category.name} • ${formatDate(expense.date)}")
         },
         trailingContent = {
-            Text(
-                "₹${String.format("%.2f", expense.amount)}",
-                color = Color.Red,
-                fontWeight = FontWeight.Bold
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "₹${String.format("%.2f", expense.amount)}",
+                    color = Color.Red,
+                    fontWeight = FontWeight.Bold
+                )
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggle() }
+                    )
+                }
+            }
         }
     )
     HorizontalDivider()

@@ -14,6 +14,9 @@ interface ExpenseDao {
     @Insert
     suspend fun insertExpense(expense: Expense)
 
+    @Query("DELETE FROM expenses WHERE id IN (:ids)")
+    suspend fun deleteExpenses(ids: List<Long>)
+
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses()
 }
