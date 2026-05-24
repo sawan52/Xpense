@@ -3,7 +3,7 @@ package com.example.xpense.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
+import androidx.compose.material. icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -54,7 +54,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
             )
 
             LazyColumn(
-                modifier = Modifier.fillWeight(1f)
+                modifier = Modifier.weight(1f)
             ) {
                 items(expenses) { expense ->
                     ExpenseItem(expense)
@@ -112,20 +112,4 @@ fun ExpenseItem(expense: Expense) {
 fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
     return sdf.format(Date(timestamp))
-}
-
-fun Modifier.fillWeight(weight: Float): Modifier = this.then(
-    LayoutModifierImpl(weight)
-)
-
-private class LayoutModifierImpl(val weight: Float) : androidx.compose.ui.layout.LayoutModifier {
-    override fun androidx.compose.ui.layout.MeasureScope.measure(
-        measurable: androidx.compose.ui.layout.Measurable,
-        constraints: androidx.compose.ui.layout.Constraints
-    ): androidx.compose.ui.layout.MeasureResult {
-        val placeable = measurable.measure(constraints)
-        return layout(placeable.width, placeable.height) {
-            placeable.placeRelative(0, 0)
-        }
-    }
 }

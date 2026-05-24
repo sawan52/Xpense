@@ -25,7 +25,7 @@ object SmsParser {
     }
 
     private fun extractMerchant(smsBody: String): String {
-        val merchantPattern = Pattern.compile("(?i)(?:at|to|in\\*|spent\\son)\\s([A-Za-z0-9\\s\\.\\-\\*]{3,25})")
+        val merchantPattern = Pattern.compile("(?i)(?:at|to|in\\*|spent\\son)\\s(?:VPA\\s)?([A-Za-z0-9\\s\\.\\-\\*]{3,25})")
         val matcher = merchantPattern.matcher(smsBody)
         return if (matcher.find()) {
             matcher.group(1)?.trim() ?: "Unknown Merchant"

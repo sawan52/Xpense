@@ -18,20 +18,27 @@ class SmsReceiver : BroadcastReceiver() {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
             for (message in messages) {
                 val body = message.displayMessageBody
-                val transaction = SmsParser.parseTransaction(body)
-                
-                if (transaction != null) {
-                    saveExpense(context, transaction, body)
-                }
+                processSms(context, body)
             }
+        } else if (intent.action == "com.example.xpense.SIMULATE_SMS") {
+            val body = intent.getStringExtra("body") ?: return
+            val timestamp = intent.getLongExtra("timestamp", System.currentTimeMillis())
+            processSms(context, body, timestamp)
         }
     }
 
-    private fun saveExpense(context: Context, transaction: SmsParser.TransactionDetails, rawSms: String) {
+    private fun processSms(context: Context, body: String, timestamp: Long = System.currentTimeMillis()) {
+        val transaction = SmsParser.parseTransaction(body)
+        if (transaction != null) {
+            saveExpense(context, transaction, body, timestamp)
+        }
+    }
+
+    private fun saveExpense(context: Context, transaction: SmsParser.TransactionDetails, rawSms: String, timestamp: Long) {
         val expense = Expense(
             amount = transaction.amount,
             merchant = transaction.merchant,
-            date = System.currentTimeMillis(),
+            date = timestamp,
             category = transaction.category,
             rawSms = rawSms
         )
