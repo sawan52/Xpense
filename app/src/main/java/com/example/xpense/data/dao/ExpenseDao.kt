@@ -3,6 +3,7 @@ package com.example.xpense.data.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.example.xpense.data.entity.Expense
 import kotlinx.coroutines.flow.Flow
 
@@ -13,6 +14,9 @@ interface ExpenseDao {
 
     @Insert
     suspend fun insertExpense(expense: Expense)
+
+    @Update
+    suspend fun updateExpense(expense: Expense)
 
     @Query("DELETE FROM expenses WHERE id IN (:ids)")
     suspend fun deleteExpenses(ids: List<Long>)
