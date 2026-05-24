@@ -1,12 +1,10 @@
 package com.example.xpense.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,12 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xpense.ui.components.ExpenseDialog
+import com.example.xpense.ui.components.SpendingChart
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
-    val monthlyTotals by viewModel.monthlyTotals.collectAsState()
-    val sortedMonths by viewModel.availableMonths.collectAsState()
+    val lastSixMonths by viewModel.lastSixMonthsTotals.collectAsState()
     val allExpenses by viewModel.allExpenses.collectAsState()
     val allExpensesTotal = allExpenses.sumOf { it.amount }
 
@@ -30,7 +28,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Expense Summary") })
+            TopAppBar(title = { Text("Overview") })
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
@@ -42,23 +40,25 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
             TotalCard(allExpensesTotal)
 
             Text(
-                "Monthly Breakdown",
+                "Spending Trends (Last 6 Months)",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
+            
+            SpendingChart(
+                data = lastSixMonths,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .padding(horizontal = 16.dp)
+            )
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(sortedMonths) { month ->
-                    val total = monthlyTotals[month] ?: 0.0
-                    MonthSummaryItem(month, total) {
-                        viewModel.navigateTo(Screen.TRACKER, month)
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(80.dp)) // FAB padding
         }
 
         if (showAddDialog) {
@@ -91,23 +91,4 @@ fun TotalCard(total: Double) {
             )
         }
     }
-}
-
-@Composable
-fun MonthSummaryItem(month: String, total: Double, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier.clickable { onClick() },
-        headlineContent = { Text(month, fontWeight = FontWeight.SemiBold) },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "₹${String.format("%.2f", total)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp).padding(start = 4.dp))
-            }
-        }
-    )
-    HorizontalDivider()
 }

@@ -53,10 +53,6 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                         IconButton(onClick = { viewModel.exitSelectionMode() }) {
                             Icon(Icons.Default.Close, contentDescription = "Exit Selection")
                         }
-                    } else {
-                        IconButton(onClick = { viewModel.navigateTo(Screen.HOME) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Summary")
-                        }
                     }
                 },
                 actions = {

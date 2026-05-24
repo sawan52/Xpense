@@ -52,6 +52,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val lastSixMonthsTotals: StateFlow<List<Pair<String, Double>>> = combine(availableMonths, monthlyTotals) { months, totals ->
+        months.take(6).reversed().map { month ->
+            month to (totals[month] ?: 0.0)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _selectedMonth = MutableStateFlow<String?>(null)
     val selectedMonth: StateFlow<String?> = _selectedMonth.asStateFlow()
 
