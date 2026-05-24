@@ -11,7 +11,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,6 +39,7 @@ class MainActivity : ComponentActivity() {
             XpenseTheme {
                 val viewModel: ExpenseViewModel = viewModel()
                 val currentScreen by viewModel.currentScreen.collectAsState()
+                
                 val context = LocalContext.current
                 var hasSmsPermission by remember {
                     mutableStateOf(
@@ -58,7 +62,27 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        if (hasSmsPermission) {
+                            NavigationBar {
+                                NavigationBarItem(
+                                    selected = currentScreen == Screen.HOME,
+                                    onClick = { viewModel.navigateTo(Screen.HOME) },
+                                    label = { Text("Home") },
+                                    icon = { Icon(Icons.Default.Home, contentDescription = null) }
+                                )
+                                NavigationBarItem(
+                                    selected = currentScreen == Screen.TRACKER,
+                                    onClick = { viewModel.navigateTo(Screen.TRACKER) },
+                                    label = { Text("Tracker") },
+                                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }
+                                )
+                            }
+                        }
+                    }
+                ) { innerPadding ->
                     if (hasSmsPermission) {
                         Box(modifier = Modifier.padding(innerPadding)) {
                             when (currentScreen) {
