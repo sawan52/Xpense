@@ -6,16 +6,20 @@ import androidx.lifecycle.viewModelScope
 import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.model.Category
+import android.content.Context
+import com.example.xpense.sms.SyncManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -26,9 +30,20 @@ enum class Screen {
 class ExpenseViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val expenseDao = db.expenseDao()
+    private val syncManager = SyncManager(application)
+    private val prefs = application.getSharedPreferences("xpense_prefs", Context.MODE_PRIVATE)
 
     private val _currentScreen = MutableStateFlow(Screen.HOME)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
+
+    private val _syncProgress = MutableStateFlow<Float?>(null)
+    val syncProgress: StateFlow<Float?> = _syncProgress.asStateFlow()
+
+    private val _syncMessage = MutableStateFlow<String?>(null)
+    val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
+
+    private val _showSyncConfirm = MutableStateFlow(false)
+    val showSyncConfirm: StateFlow<Boolean> = _showSyncConfirm.asStateFlow()
 
     val allExpenses: StateFlow<List<Expense>> = expenseDao.getAllExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -87,6 +102,52 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectMonth(month: String) {
         _selectedMonth.value = month
+    }
+
+    fun startHistoricalSync() {
+        val lastSync = prefs.getLong("last_sync_date", 0L)
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        if (lastSync >= today) {
+            _syncMessage.value = "Sync is possible only once a day."
+            return
+        }
+
+        _showSyncConfirm.value = true
+    }
+
+    fun confirmSyncAndStart() {
+        _showSyncConfirm.value = false
+        viewModelScope.launch {
+            syncManager.syncHistoricalSms().collect { progress ->
+                when (progress) {
+                    is SyncManager.SyncProgress.Started -> {
+                        _syncProgress.value = 0f
+                    }
+                    is SyncManager.SyncProgress.Progress -> {
+                        _syncProgress.value = progress.percentage
+                    }
+                    is SyncManager.SyncProgress.Completed -> {
+                        _syncProgress.value = null
+                        prefs.edit().putLong("last_sync_date", System.currentTimeMillis()).apply()
+                        _syncMessage.value = "Sync completed successfully!"
+                    }
+                }
+            }
+        }
+    }
+
+    fun clearSyncMessage() {
+        _syncMessage.value = null
+    }
+
+    fun hideSyncConfirm() {
+        _showSyncConfirm.value = false
     }
 
     fun addExpense(amount: Double, merchant: String, category: Category, date: Long) {

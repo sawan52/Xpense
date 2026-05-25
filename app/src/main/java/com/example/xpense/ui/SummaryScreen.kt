@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -37,11 +38,26 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
     val lastSixMonths by viewModel.lastSixMonthsTotals.collectAsState()
     val allExpenses by viewModel.allExpenses.collectAsState()
     val allExpensesTotal = allExpenses.sumOf { it.amount }
+    
+    val syncProgress by viewModel.syncProgress.collectAsState()
+    val syncMessage by viewModel.syncMessage.collectAsState()
+    val showSyncConfirm by viewModel.showSyncConfirm.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color(0xFFF5F7FF),
+        topBar = {
+            TopAppBar(
+                title = { Text("Overview", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { viewModel.startHistoricalSync() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Sync SMS", tint = Color(0xFF475569))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -87,9 +103,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
                         Text("Hello, Sawan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("Welcome back", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                     }
-                }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Notifications, contentDescription = null, tint = Color(0xFF475569))
                 }
             }
 
@@ -190,6 +203,86 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
                     showAddDialog = false
                 }
             )
+        }
+
+        if (syncProgress != null) {
+            SyncProgressDialog(progress = syncProgress!!)
+        }
+
+        if (showSyncConfirm) {
+            AlertDialog(
+                onDismissRequest = { viewModel.hideSyncConfirm() },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.confirmSyncAndStart() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5))
+                    ) {
+                        Text("Yes, Sync Now", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.hideSyncConfirm() }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                },
+                title = { Text("Confirm Sync", fontWeight = FontWeight.ExtraBold) },
+                text = { Text("This will scan your SMS inbox for the last 6 months to find bank transactions. Do you want to proceed?") },
+                shape = RoundedCornerShape(28.dp),
+                containerColor = Color.White
+            )
+        }
+
+        if (syncMessage != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.clearSyncMessage() },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.clearSyncMessage() }) {
+                        Text("OK", fontWeight = FontWeight.Bold)
+                    }
+                },
+                title = { Text("Sync Update") },
+                text = { Text(syncMessage!!) },
+                shape = RoundedCornerShape(24.dp),
+                containerColor = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+fun SyncProgressDialog(progress: Float) {
+    Dialog(onDismissRequest = {}) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(64.dp),
+                    color = Color(0xFF4F46E5),
+                    strokeWidth = 6.dp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    "Scanning Messages...",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "${(progress * 100).toInt()}% complete",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
         }
     }
 }
