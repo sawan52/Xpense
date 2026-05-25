@@ -16,6 +16,15 @@ import com.example.xpense.data.model.Category
 import java.text.SimpleDateFormat
 import java.util.*
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpenseDialog(
@@ -47,36 +56,51 @@ fun ExpenseDialog(
         initialMinute = calendar.get(Calendar.MINUTE)
     )
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (expense == null) "Add Expense" else "Edit Expense") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(32.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (expense == null) "New Expense" else "Edit Expense",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF1E293B)
+                )
+
+                PremiumTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Amount") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Amount",
+                    keyboardType = KeyboardType.Decimal,
+                    placeholder = "0.00"
                 )
-                OutlinedTextField(
+
+                PremiumTextField(
                     value = merchant,
                     onValueChange = { merchant = it },
-                    label = { Text("Merchant") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = "Merchant",
+                    placeholder = "Where did you spend?"
                 )
                 
                 ExposedDropdownMenuBox(
                     expanded = categoryExpanded,
                     onExpandedChange = { categoryExpanded = !categoryExpanded }
                 ) {
-                    OutlinedTextField(
+                    PremiumTextField(
                         value = category.name,
                         onValueChange = {},
+                        label = "Category",
                         readOnly = true,
-                        label = { Text("Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier.menuAnchor()
                     )
                     ExposedDropdownMenu(
                         expanded = categoryExpanded,
@@ -84,7 +108,7 @@ fun ExpenseDialog(
                     ) {
                         Category.entries.forEach { cat ->
                             DropdownMenuItem(
-                                text = { Text(cat.name) },
+                                text = { Text(cat.name, fontWeight = FontWeight.Medium) },
                                 onClick = {
                                     category = cat
                                     categoryExpanded = false
@@ -94,69 +118,63 @@ fun ExpenseDialog(
                     }
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(dateMillis)),
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PremiumTextField(
+                        value = SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(dateMillis)),
                         onValueChange = {},
+                        label = "Date",
                         readOnly = true,
-                        label = { Text("Date") },
-                        trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
-                        modifier = Modifier.weight(1f).clickable { showDatePicker = true },
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        modifier = Modifier.weight(1f).clickable { showDatePicker = true }
                     )
                     
-                    OutlinedTextField(
+                    PremiumTextField(
                         value = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(dateMillis)),
                         onValueChange = {},
+                        label = "Time",
                         readOnly = true,
-                        label = { Text("Time") },
-                        modifier = Modifier.weight(1f).clickable { showTimePicker = true },
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
-                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        modifier = Modifier.weight(1f).clickable { showTimePicker = true }
                     )
                 }
-                
-                // Interaction layers for clicks since TextField is disabled to prevent keyboard
-                Box(modifier = Modifier.offset(y = (-70).dp).fillMaxWidth().height(60.dp)) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable { showDatePicker = true })
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clickable { showTimePicker = true })
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Cancel", color = Color.Gray, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            val amt = amount.toDoubleOrNull() ?: 0.0
+                            onConfirm(amt, merchant, category, dateMillis)
+                        },
+                        enabled = amount.isNotEmpty() && merchant.isNotEmpty(),
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                if (amount.isNotEmpty() && merchant.isNotEmpty())
+                                    Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF6366F1)))
+                                else
+                                    Brush.linearGradient(listOf(Color.LightGray, Color.LightGray))
+                            ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("Save Transaction", fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amt = amount.toDoubleOrNull() ?: 0.0
-                    onConfirm(amt, merchant, category, dateMillis)
-                },
-                enabled = amount.isNotEmpty() && merchant.isNotEmpty()
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
         }
-    )
+    }
 
     if (showDatePicker) {
         DatePickerDialog(
@@ -185,7 +203,8 @@ fun ExpenseDialog(
         Dialog(onDismissRequest = { showTimePicker = false }) {
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
-                tonalElevation = 6.dp
+                tonalElevation = 6.dp,
+                color = Color.White
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -213,5 +232,43 @@ fun ExpenseDialog(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun PremiumTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    readOnly: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.Gray,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = Color.LightGray) },
+            readOnly = readOnly,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            trailingIcon = trailingIcon,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF4F46E5),
+                unfocusedBorderColor = Color(0xFFE2E8F0),
+                focusedContainerColor = Color(0xFFF8FAFC),
+                unfocusedContainerColor = Color(0xFFF8FAFC)
+            ),
+            singleLine = true
+        )
     }
 }
