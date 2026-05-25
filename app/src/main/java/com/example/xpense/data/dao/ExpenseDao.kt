@@ -12,6 +12,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM expenses WHERE rawSms = :rawSms AND date = :date)")
+    suspend fun doesExpenseExist(rawSms: String, date: Long): Boolean
+
     @Insert
     suspend fun insertExpense(expense: Expense)
 
