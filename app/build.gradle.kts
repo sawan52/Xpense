@@ -22,6 +22,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../xpense-key.jks")
+            storePassword = "xpense123"
+            keyAlias = "xpense-alias"
+            keyPassword = "xpense123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -29,8 +38,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
