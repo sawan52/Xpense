@@ -32,7 +32,7 @@ fun CategoryDonutChart(
     )
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Canvas(modifier = Modifier.size(140.dp)) {
+        Canvas(modifier = Modifier.size(100.dp)) {
             var startAngle = -90f
             summary.values.forEachIndexed { index, amount ->
                 val sweepAngle = (amount / total * 360f).toFloat()
@@ -41,7 +41,7 @@ fun CategoryDonutChart(
                     startAngle = startAngle,
                     sweepAngle = sweepAngle,
                     useCenter = false,
-                    style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round)
                 )
                 startAngle += sweepAngle
             }
@@ -50,12 +50,14 @@ fun CategoryDonutChart(
             Text(
                 text = "Spending",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray
+                color = Color.Gray,
+                fontSize = 10.sp
             )
             Text(
                 text = "Breakdown",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp
             )
         }
     }

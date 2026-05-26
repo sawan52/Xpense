@@ -87,7 +87,8 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         }
     ) { padding ->
@@ -134,20 +135,20 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .shadow(12.dp, RoundedCornerShape(28.dp)),
-                shape = RoundedCornerShape(28.dp),
+                    .shadow(12.dp, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
                 color = Color.White
             ) {
                 Row(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CategoryDonutChart(summary = summary, modifier = Modifier.weight(1f))
                     Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                        Text("Total Spent", color = Color.Gray, fontSize = 12.sp)
+                        Text("Total Spent", color = Color.Gray, fontSize = 11.sp)
                         Text(
                             "₹${String.format("%.2f", totalAmount)}",
-                            fontSize = 24.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF4F46E5)
                         )
@@ -155,7 +156,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Transaction List with premium cards
             LazyColumn(
@@ -173,8 +174,6 @@ fun ExpenseScreen(viewModel: ExpenseViewModel = viewModel()) {
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(80.dp))
         }
 
         if (showEditDialog) {

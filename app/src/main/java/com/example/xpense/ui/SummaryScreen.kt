@@ -55,7 +55,8 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
                         Icon(Icons.Default.Refresh, contentDescription = "Sync SMS", tint = Color(0xFF475569))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         },
         floatingActionButton = {
@@ -100,7 +101,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Hello, Sawan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Hello, User", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("Welcome back", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                     }
                 }
@@ -191,8 +192,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(100.dp))
         }
 
         if (showAddDialog) {
