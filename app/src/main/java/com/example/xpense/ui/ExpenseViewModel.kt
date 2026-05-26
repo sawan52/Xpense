@@ -137,10 +137,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                         prefs.edit().putLong("last_sync_date", System.currentTimeMillis()).apply()
                         _syncMessage.value = "Sync completed successfully!"
                     }
-                    is SyncManager.SyncProgress.Error -> {
-                        _syncProgress.value = null
-                        _syncMessage.value = "Error: ${progress.message}"
-                    }
                 }
             }
         }

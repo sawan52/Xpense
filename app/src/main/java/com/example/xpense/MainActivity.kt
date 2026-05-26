@@ -80,40 +80,31 @@ class MainActivity : ComponentActivity() {
                 val currentScreen by viewModel.currentScreen.collectAsState()
                 
                 val context = LocalContext.current
-                var hasSmsPermissions by remember {
+                var hasSmsPermission by remember {
                     mutableStateOf(
                         ContextCompat.checkSelfPermission(
                             context,
                             Manifest.permission.RECEIVE_SMS
-                        ) == PackageManager.PERMISSION_GRANTED &&
-                        ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.READ_SMS
                         ) == PackageManager.PERMISSION_GRANTED
                     )
                 }
 
                 val permissionLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    hasSmsPermissions = permissions.values.all { it }
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    hasSmsPermission = isGranted
                 }
 
                 LaunchedEffect(Unit) {
-                    if (!hasSmsPermissions) {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.RECEIVE_SMS,
-                                Manifest.permission.READ_SMS
-                            )
-                        )
+                    if (!hasSmsPermission) {
+                        permissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
                     }
                 }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        if (hasSmsPermissions) {
+                        if (hasSmsPermission) {
                             Surface(
                                 modifier = Modifier
                                     .padding(start = 32.dp, end = 32.dp, bottom = 24.dp)
@@ -144,7 +135,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    if (hasSmsPermissions) {
+                    if (hasSmsPermission) {
                         Box(modifier = Modifier.padding(innerPadding)) {
                             when (currentScreen) {
                                 Screen.HOME -> SummaryScreen(viewModel)
