@@ -4,14 +4,10 @@ import com.example.xpense.data.model.Category
 import java.util.regex.Pattern
 
 object SmsParser {
-    private val AMOUNT_PATTERN = Pattern.compile("(?i)(?:Rs\\.?|INR|MRP|VPA|Amt|Txn of)\\s?([\\d,]+\\.?\\d{0,2})")
-    private val DEBIT_PATTERN = Pattern.compile("(?i)\\b(debited|spent|paid|sent|transferred|deducted|withdrawn)\\b")
-    private val IGNORE_PATTERN = Pattern.compile("(?i)\\b(OTP|code|password|verification|login|secret|credited|received|deposited)\\b")
+    private val AMOUNT_PATTERN = Pattern.compile("(?i)(?:Rs\\.?|INR|MRP)\\s?([\\d,]+\\.?\\d{0,2})")
+    private val DEBIT_PATTERN = Pattern.compile("(?i)\\b(debited|spent|paid|sent|transferred|deducted)\\b")
     
     fun parseTransaction(smsBody: String): TransactionDetails? {
-        // Filter out non-transactional or credit SMS
-        if (IGNORE_PATTERN.matcher(smsBody).find()) return null
-
         val isDebit = DEBIT_PATTERN.matcher(smsBody).find()
         if (!isDebit) return null
 
@@ -19,7 +15,6 @@ object SmsParser {
         if (amountMatcher.find()) {
             val amountStr = amountMatcher.group(1)?.replace(",", "") ?: return null
             val amount = amountStr.toDoubleOrNull() ?: return null
-            if (amount <= 0) return null
             
             val merchant = extractMerchant(smsBody)
             val category = categorize(merchant, smsBody)
@@ -30,10 +25,10 @@ object SmsParser {
     }
 
     private fun extractMerchant(smsBody: String): String {
-        val merchantPattern = Pattern.compile("(?i)(?:at|to|in\\*|spent\\son|info\\*)\\s(?:VPA\\s)?([A-Za-z0-9\\s\\.\\-\\*]{3,25})")
+        val merchantPattern = Pattern.compile("(?i)(?:at|to|in\\*|spent\\son)\\s(?:VPA\\s)?([A-Za-z0-9\\s\\.\\-\\*]{3,25})")
         val matcher = merchantPattern.matcher(smsBody)
         return if (matcher.find()) {
-            matcher.group(1)?.trim()?.take(25) ?: "Unknown Merchant"
+            matcher.group(1)?.trim() ?: "Unknown Merchant"
         } else {
             "Unknown Merchant"
         }
