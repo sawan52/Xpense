@@ -1,0 +1,326 @@
+package com.example.xpense.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.xpense.data.entity.Category
+import com.example.xpense.data.entity.CategoryRule
+import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.utils.CategoryUtils
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
+    val rules      by viewModel.allRules.collectAsState()
+    val categories by viewModel.allCategories.collectAsState()
+
+    var selectedTab          by remember { mutableIntStateOf(0) }
+    var showAddRuleDialog    by remember { mutableStateOf(false) }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
+        containerColor = DarkBg,
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBg),
+                windowInsets = WindowInsets(0, 0, 0, 0)
+            )
+        },
+        floatingActionButton = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(PurplePrimary, PurpleLight)))
+                    .clickable {
+                        if (selectedTab == 0) showAddRuleDialog = true else showAddCategoryDialog = true
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(24.dp))
+            }
+        }
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = DarkBg,
+                contentColor = PurpleLight
+            ) {
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
+                    selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
+                    Text("Auto-Rules", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                }
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
+                    selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
+                    Text("Categories", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (selectedTab == 0) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(rules, key = { it.id }) { rule ->
+                        val category = categories.find { it.id == rule.categoryId }
+                            ?: Category(name = "Unknown", iconName = "Category")
+                        DarkRuleItem(rule = rule, category = category, onDelete = { viewModel.deleteRule(rule.id) })
+                    }
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(categories, key = { it.id }) { category ->
+                        DarkCategoryItem(category = category)
+                    }
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
+            }
+        }
+    }
+
+    if (showAddRuleDialog) {
+        DarkAddRuleDialog(
+            categories = categories,
+            onDismiss = { showAddRuleDialog = false },
+            onConfirm = { keyword, categoryId ->
+                viewModel.addRule(keyword, categoryId)
+                showAddRuleDialog = false
+            }
+        )
+    }
+
+    if (showAddCategoryDialog) {
+        DarkAddCategoryDialog(
+            onDismiss = { showAddCategoryDialog = false },
+            onConfirm = { name, icon ->
+                viewModel.addCategory(name, icon)
+                showAddCategoryDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun DarkRuleItem(rule: CategoryRule, category: Category, onDelete: () -> Unit) {
+    val color = CategoryUtils.getCategoryColor(category)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkCard)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(color.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(rule.keyword, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(category.name, color = TextMuted, fontSize = 12.sp)
+        }
+        IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.Delete, null, tint = RedNegative.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+fun DarkCategoryItem(category: Category) {
+    val color = CategoryUtils.getCategoryColor(category)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkCard)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(color.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        Text(category.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfirm: (String, Long) -> Unit) {
+    var keyword by remember { mutableStateOf("") }
+    var selectedCategoryId by remember { mutableStateOf(categories.firstOrNull()?.id ?: 0L) }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkCard,
+        title = { Text("Map Keyword to Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = keyword,
+                    onValueChange = { keyword = it },
+                    label = { Text("Keyword (e.g. Starbucks)", color = TextSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PurplePrimary,
+                        unfocusedBorderColor = DarkBorder,
+                        focusedContainerColor = DarkSurface,
+                        unfocusedContainerColor = DarkSurface,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                    OutlinedTextField(
+                        value = categories.find { it.id == selectedCategoryId }?.name ?: "Select",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category", color = TextSecondary) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PurplePrimary,
+                            unfocusedBorderColor = DarkBorder,
+                            focusedContainerColor = DarkSurface,
+                            unfocusedContainerColor = DarkSurface,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                        containerColor = DarkSurface
+                    ) {
+                        categories.forEach { cat ->
+                            DropdownMenuItem(
+                                text = { Text(cat.name, color = TextPrimary) },
+                                onClick = { selectedCategoryId = cat.id ; expanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(keyword, selectedCategoryId) },
+                enabled = keyword.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+            ) { Text("Add Rule") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
+        }
+    )
+}
+
+@Composable
+fun DarkAddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var selectedIcon by remember { mutableStateOf("Category") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkCard,
+        title = { Text("Create Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Category Name", color = TextSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PurplePrimary,
+                        unfocusedBorderColor = DarkBorder,
+                        focusedContainerColor = DarkSurface,
+                        unfocusedContainerColor = DarkSurface,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+                Text("Pick an Icon", color = TextSecondary, fontSize = 13.sp)
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(48.dp),
+                    modifier = Modifier.height(140.dp)
+                ) {
+                    items(CategoryUtils.availableIcons) { iconName ->
+                        val isSel = selectedIcon == iconName
+                        Box(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) PurplePrimary.copy(alpha = 0.2f) else DarkSurface)
+                                .clickable { selectedIcon = iconName },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                CategoryUtils.getIconByName(iconName), null,
+                                tint = if (isSel) PurpleLight else TextMuted,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(name, selectedIcon) },
+                enabled = name.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+            ) { Text("Create") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
+        }
+    )
+}

@@ -6,13 +6,17 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.xpense.data.dao.ExpenseDao
+import com.example.xpense.data.dao.CategoryRuleDao
+import com.example.xpense.data.dao.CategoryDao
 import com.example.xpense.data.entity.Expense
-import com.example.xpense.data.model.Category
+import com.example.xpense.data.entity.CategoryRule
+import com.example.xpense.data.entity.Category
 
-@Database(entities = [Expense::class], version = 1, exportSchema = false)
-@TypeConverters(Converters::class)
+@Database(entities = [Expense::class, CategoryRule::class, Category::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
+    abstract fun categoryRuleDao(): CategoryRuleDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile
@@ -24,22 +28,12 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "expense_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }
         }
-    }
-}
-
-class Converters {
-    @androidx.room.TypeConverter
-    fun fromCategory(category: Category): String {
-        return category.name
-    }
-
-    @androidx.room.TypeConverter
-    fun toCategory(value: String): Category {
-        return Category.valueOf(value)
     }
 }

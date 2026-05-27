@@ -1,299 +1,416 @@
 package com.example.xpense.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.material.icons.automirrored.filled.*
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.filled.AccountCircle
-import com.example.xpense.data.model.Category
-import com.example.xpense.ui.components.ExpenseDialog
-import com.example.xpense.ui.components.SpendingChart
-
+import com.example.xpense.ui.components.SparklineChart
+import com.example.xpense.ui.components.SpendingLineChart
+import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
+import java.text.SimpleDateFormat
+import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SummaryScreen(viewModel: ExpenseViewModel = viewModel()) {
-    val lastSixMonths by viewModel.lastSixMonthsTotals.collectAsState()
-    val allExpenses by viewModel.allExpenses.collectAsState()
-    val allExpensesTotal = allExpenses.sumOf { it.amount }
-    
-    val syncProgress by viewModel.syncProgress.collectAsState()
-    val syncMessage by viewModel.syncMessage.collectAsState()
+fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
+    val allExpenses    by viewModel.allExpenses.collectAsState()
+    val lastSixMonths  by viewModel.lastSixMonthsTotals.collectAsState()
+    val syncProgress   by viewModel.syncProgress.collectAsState()
     val showSyncConfirm by viewModel.showSyncConfirm.collectAsState()
+    val syncMessage    by viewModel.syncMessage.collectAsState()
 
-    var showAddDialog by remember { mutableStateOf(false) }
+    val totalAmount = allExpenses.sumOf { it.expense.amount }
 
-    Scaffold(
-        containerColor = Color(0xFFF5F7FF),
-        topBar = {
-            TopAppBar(
-                title = { Text("Overview", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { viewModel.startHistoricalSync() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Sync SMS", tint = Color(0xFF475569))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                windowInsets = WindowInsets(0, 0, 0, 0)
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = Color(0xFF4F46E5),
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 0.dp).size(64.dp).shadow(12.dp, CircleShape)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Expense", modifier = Modifier.size(32.dp))
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        modifier = Modifier.size(48.dp),
-                        shape = CircleShape,
-                        color = Color(0xFFEEF2FF)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = null,
-                            tint = Color(0xFF4F46E5),
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text("Hello, User", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("Welcome back", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Premium Total Card
-            PremiumSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .shadow(20.dp, RoundedCornerShape(32.dp)),
-                shape = RoundedCornerShape(32.dp),
-                brush = Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF6366F1)))
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("Total Spending", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                    Text(
-                        "₹${String.format("%.2f", allExpensesTotal)}",
-                        color = Color.White,
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Last 6 months", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Chart Section
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp),
-                color = Color.White
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("Spending Trends", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    SpendingChart(data = lastSixMonths, modifier = Modifier.fillMaxWidth())
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Recent Transactions Preview (Simple version for Home)
-            Text("Recent Activity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            allExpenses.take(3).forEach { expense ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    tonalElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                modifier = Modifier.size(40.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFF1F5F9)
-                            ) {
-                                Icon(
-                                    imageVector = CategoryUtils.getCategoryIcon(expense.category),
-                                    contentDescription = null,
-                                    tint = Color(0xFF4F46E5),
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(expense.merchant, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(expense.category.name, color = Color.Gray, fontSize = 12.sp)
-                            }
-                        }
-                        Text("-₹${expense.amount}", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        if (showAddDialog) {
-            ExpenseDialog(
-                onDismiss = { showAddDialog = false },
-                onConfirm = { amount, merchant, category, date ->
-                    viewModel.addExpense(amount, merchant, category, date)
-                    showAddDialog = false
-                }
-            )
-        }
-
-        if (syncProgress != null) {
-            SyncProgressDialog(progress = syncProgress!!)
-        }
-
-        if (showSyncConfirm) {
-            AlertDialog(
-                onDismissRequest = { viewModel.hideSyncConfirm() },
-                confirmButton = {
-                    Button(
-                        onClick = { viewModel.confirmSyncAndStart() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5))
-                    ) {
-                        Text("Yes, Sync Now", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.hideSyncConfirm() }) {
-                        Text("Cancel", color = Color.Gray)
-                    }
-                },
-                title = { Text("Confirm Sync", fontWeight = FontWeight.ExtraBold) },
-                text = { Text("This will scan your SMS inbox for the last 6 months to find bank transactions. Do you want to proceed?") },
-                shape = RoundedCornerShape(28.dp),
-                containerColor = Color.White
-            )
-        }
-
-        if (syncMessage != null) {
-            AlertDialog(
-                onDismissRequest = { viewModel.clearSyncMessage() },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.clearSyncMessage() }) {
-                        Text("OK", fontWeight = FontWeight.Bold)
-                    }
-                },
-                title = { Text("Sync Update") },
-                text = { Text(syncMessage!!) },
-                shape = RoundedCornerShape(24.dp),
-                containerColor = Color.White
-            )
-        }
+    val greeting = remember {
+        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when { h < 12 -> "Good Morning," ; h < 17 -> "Good Afternoon," ; else -> "Good Evening," }
     }
-}
 
-@Composable
-fun SyncProgressDialog(progress: Float) {
-    Dialog(onDismissRequest = {}) {
-        Surface(
+    val monthFmt = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
+    val cal = remember { Calendar.getInstance() }
+    val curMonth  = remember { monthFmt.format(cal.time) }
+    val prevMonth = remember {
+        Calendar.getInstance().also { it.add(Calendar.MONTH, -1) }.let { monthFmt.format(it.time) }
+    }
+    val curTotal  = allExpenses.filter { monthFmt.format(Date(it.expense.date)) == curMonth }.sumOf { it.expense.amount }
+    val prevTotal = allExpenses.filter { monthFmt.format(Date(it.expense.date)) == prevMonth }.sumOf { it.expense.amount }
+    val pctChange = if (prevTotal > 0) ((curTotal - prevTotal) / prevTotal * 100).toInt() else 0
+    val recentFour = allExpenses.take(4)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // ── Top bar ──────────────────────────────────────────────────────────
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(28.dp),
-            color = Color.White
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            Icon(
+                Icons.Default.Menu, "Menu",
+                tint = TextSecondary,
+                modifier = Modifier
+                    .size(28.dp)
+                    .padding(top = 4.dp)
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(greeting, color = TextSecondary, fontSize = 13.sp)
+                Text("Sawan 👋", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("You're doing great! Keep it up.", color = TextMuted, fontSize = 12.sp)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.size(64.dp),
-                    color = Color(0xFF4F46E5),
-                    strokeWidth = 6.dp
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    "Scanning Messages...",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "${(progress * 100).toInt()}% complete",
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.Notifications, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+                }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(Brush.linearGradient(listOf(PurplePrimary, PurpleLight)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("S", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
             }
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        // ── Total balance card ────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Brush.linearGradient(listOf(Color(0xFF3B0764), PurplePrimary, PurpleLight)))
+                .padding(24.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Total Balance", color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp)
+                    Icon(Icons.Default.Visibility, null, tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "₹${String.format("%,.2f", totalAmount)}",
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                val sign = if (pctChange >= 0) "↑" else "↓"
+                val changeColor = if (pctChange <= 0) GreenPositive else RedNegative
+                Text(
+                    "$sign ${Math.abs(pctChange)}% from last month",
+                    color = changeColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                // Sparkline
+                SparklineChart(
+                    data = lastSixMonths,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(vertical = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(20.dp))
+                            .clickable { viewModel.navigateTo(Screen.INSIGHTS) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("View Insights", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        // ── Quick actions ─────────────────────────────────────────────────
+        SectionHeader("Quick Actions")
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            QuickActionItem(Icons.Default.Add,       "Add Expense",  Modifier.weight(1f)) { onAddExpense() }
+            QuickActionItem(Icons.Default.CameraAlt, "Scan Receipt", Modifier.weight(1f)) { }
+            QuickActionItem(Icons.Default.PieChart,  "Insights",     Modifier.weight(1f)) { viewModel.navigateTo(Screen.INSIGHTS) }
+            QuickActionItem(Icons.Default.GridView,  "Categories",   Modifier.weight(1f)) { viewModel.navigateTo(Screen.CATEGORY_RULES) }
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        // ── Spending activity ─────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Spending Activity", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Box(
+                modifier = Modifier
+                    .background(DarkCard, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("This Month ↓", color = TextSecondary, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(DarkCard)
+                .padding(20.dp)
+        ) {
+            SpendingLineChart(
+                data = lastSixMonths,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+            )
+        }
+
+        Spacer(Modifier.height(28.dp))
+
+        // ── Recent transactions ───────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Recent Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "View All",
+                color = PurpleLight,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { viewModel.navigateTo(Screen.HISTORY) }
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (recentFour.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(DarkCard)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No transactions yet", color = TextMuted, fontSize = 14.sp)
+                }
+            } else {
+                recentFour.forEach { item ->
+                    val color = CategoryUtils.getCategoryColor(item.category)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(DarkCard)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(color.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    CategoryUtils.getCategoryIcon(item.category), null,
+                                    tint = color, modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.expense.merchant, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${item.category.name} • ${formatHomeDate(item.expense.date)}",
+                                    color = TextMuted, fontSize = 12.sp
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    "-₹${String.format("%.2f", item.expense.amount)}",
+                                    color = RedNegative,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (item.expense.rawSms != "Manual Entry") {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 3.dp)
+                                            .background(DarkSurface, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("UPI", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(100.dp))
+    }
+
+    // ── Sync confirm dialog ───────────────────────────────────────────────
+    if (showSyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideSyncConfirm() },
+            containerColor = DarkCard,
+            title = { Text("Confirm Sync", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text("Scan your SMS inbox (last 6 months) for bank transactions?", color = TextSecondary) },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmSyncAndStart() },
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                ) { Text("Yes, Sync Now", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideSyncConfirm() }) { Text("Cancel", color = TextSecondary) }
+            }
+        )
+    }
+
+    // ── Sync progress dialog ──────────────────────────────────────────────
+    if (syncProgress != null) {
+        Dialog(onDismissRequest = {}) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(DarkCard)
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator(
+                        progress = { syncProgress!! },
+                        color = PurplePrimary,
+                        modifier = Modifier.size(64.dp),
+                        strokeWidth = 6.dp
+                    )
+                    Text("Scanning Messages…", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("${(syncProgress!! * 100).toInt()}% complete", color = TextSecondary, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+
+    // ── Sync done message ─────────────────────────────────────────────────
+    if (syncMessage != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearSyncMessage() },
+            containerColor = DarkCard,
+            title = { Text("Sync Complete", color = TextPrimary) },
+            text = { Text(syncMessage!!, color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearSyncMessage() }) {
+                    Text("OK", color = PurpleLight, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+}
+
+// ── Quick action tile ─────────────────────────────────────────────────────
+@Composable
+fun QuickActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkCard)
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(DarkSurface, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
+        }
+        Text(label, color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun PremiumSurface(
-    modifier: Modifier,
-    shape: androidx.compose.ui.graphics.Shape,
-    brush: Brush,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = modifier.background(brush, shape)) {
-        content()
-    }
+fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        color = TextPrimary,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier.padding(horizontal = 20.dp)
+    )
 }
+
+fun formatHomeDate(ts: Long): String =
+    SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(ts))
