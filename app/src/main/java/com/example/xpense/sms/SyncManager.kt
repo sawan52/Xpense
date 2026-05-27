@@ -9,10 +9,16 @@ import kotlinx.coroutines.flow.flow
 import java.util.*
 
 class SyncManager(private val context: Context) {
-    private val expenseDao = AppDatabase.getDatabase(context).expenseDao()
+    private val db = AppDatabase.getDatabase(context)
+    private val expenseDao = db.expenseDao()
+    private val ruleDao = db.categoryRuleDao()
+    private val categoryDao = db.categoryDao()
 
     fun syncHistoricalSms(): Flow<SyncProgress> = flow {
         emit(SyncProgress.Started)
+        
+        val rules = ruleDao.getAllRulesList()
+        val categories = categoryDao.getAllCategoriesList()
         
         val sixMonthsAgo = Calendar.getInstance().apply {
             add(Calendar.MONTH, -6)
@@ -37,14 +43,14 @@ class SyncManager(private val context: Context) {
                 val body = it.getString(bodyIndex)
                 val date = it.getLong(dateIndex)
                 
-                val transaction = SmsParser.parseTransaction(body)
+                val transaction = SmsParser.parseTransaction(body, rules, categories)
                 if (transaction != null) {
-                    if (!expenseDao.doesExpenseExist(body, date)) {
+                    if (!expenseDao.doesSmsExist(body)) {
                         val expense = Expense(
                             amount = transaction.amount,
                             merchant = transaction.merchant,
                             date = date,
-                            category = transaction.category,
+                            categoryId = transaction.categoryId,
                             rawSms = body
                         )
                         expenseDao.insertExpense(expense)
@@ -52,7 +58,9 @@ class SyncManager(private val context: Context) {
                 }
                 
                 processedCount++
-                emit(SyncProgress.Progress(processedCount.toFloat() / totalCount.toFloat()))
+                if (processedCount % 10 == 0 || processedCount == totalCount) {
+                    emit(SyncProgress.Progress(processedCount.toFloat() / totalCount.toFloat()))
+                }
             }
         }
         
