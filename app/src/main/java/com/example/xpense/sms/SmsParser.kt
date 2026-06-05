@@ -30,6 +30,21 @@ object SmsParser {
         "(?i)\\b(credited|received|deposited|refunded|cashback|reversal|reversed)\\b"
     )
 
+    // Credit-card BILL PAYMENT — money moving FROM a bank account TO a credit card to clear the
+    // outstanding balance. These must be skipped: every spend on the card was already recorded
+    // from its own transaction SMS, so counting the bill payment too would double-count spending.
+    // Keyed on the card being the PAYMENT DESTINATION ("credit card bill", "payment towards
+    // credit card") — NOT the bare word "card", which legitimate card-spend alerts also contain
+    // (e.g. "Txn Rs.X On HDFC Bank Card At <merchant>").
+    private val CARD_PAYMENT_PATTERN = Pattern.compile(
+        "(?i)(" +
+            "(credit\\s*card|\\bcc\\b)\\s*(bill|payment)" +                          // "credit card bill", "cc payment"
+            "|card\\s*bill" +                                                        // "card bill"
+            "|(payment|paid|pay)\\s+(towards|to|of|for)\\b.*(credit\\s*card|\\bcc\\b)" + // "payment of ... credit card"
+            "|towards\\b.*(credit\\s*card|\\bcc\\b)\\s*(bill|payment|outstanding|dues?)" + // "towards your credit card bill"
+        ")"
+    )
+
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
@@ -44,6 +59,14 @@ object SmsParser {
 
         if (SPAM_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (spam/otp): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Credit-card bill payments are already covered by the individual card-spend SMS; recording
+        // the bill payment too would double-count. Skip before the debit check, since these SMS do
+        // carry debit verbs ("debited"/"paid").
+        if (CARD_PAYMENT_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (credit card bill payment): ${smsBody.take(80)}")
             return null
         }
 
@@ -83,6 +106,17 @@ object SmsParser {
         Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=$categoryId")
         return TransactionDetails(amount, merchant, categoryId)
     }
+
+    /**
+     * Re-evaluate which category an already-saved SMS belongs to, using the current rules.
+     * Used to retro-apply rules to transactions that were imported before the rule existed.
+     * Returns the resolved categoryId (0L only if no categories exist at all).
+     */
+    fun categorizeFor(
+        smsBody: String,
+        rules: List<CategoryRule>,
+        categories: List<Category>
+    ): Long = categorize(extractMerchant(smsBody), smsBody, rules, categories)
 
     private fun extractMerchant(smsBody: String): String {
         val patterns = listOf(

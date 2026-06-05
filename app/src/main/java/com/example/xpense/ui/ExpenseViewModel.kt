@@ -7,6 +7,7 @@ import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
+import com.example.xpense.sms.SmsParser
 import com.example.xpense.sms.SyncManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -105,12 +106,48 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun addRule(keyword: String, categoryId: Long) {
         viewModelScope.launch {
             ruleDao.insertRule(CategoryRule(keyword = keyword, categoryId = categoryId))
+            // Apply the new rule to transactions that were already imported so the effect
+            // is visible immediately (otherwise only future SMS would be affected).
+            reapplyRules()
         }
     }
 
     fun deleteRule(id: Long) {
         viewModelScope.launch {
             ruleDao.deleteRule(id)
+        }
+    }
+
+    private val _reapplyResult = MutableStateFlow<Int?>(null)
+    val reapplyResult: StateFlow<Int?> = _reapplyResult.asStateFlow()
+
+    fun clearReapplyResult() { _reapplyResult.value = null }
+
+    /**
+     * Re-runs the rule/keyword categorization over every SMS-derived transaction using the
+     * current rules and categories. Manually added/edited expenses are left untouched so the
+     * user's explicit choices are respected. Returns how many were moved to a new category.
+     */
+    private suspend fun reapplyRules(): Int {
+        val rules = ruleDao.getAllRulesList()
+        val categories = categoryDao.getAllCategoriesList()
+        if (categories.isEmpty()) return 0
+        var changed = 0
+        expenseDao.getAllExpensesList().forEach { exp ->
+            if (exp.rawSms == "Manual Entry" || exp.rawSms == "Manual Update") return@forEach
+            val newCategoryId = SmsParser.categorizeFor(exp.rawSms, rules, categories)
+            if (newCategoryId != 0L && newCategoryId != exp.categoryId) {
+                expenseDao.updateExpenseCategory(exp.id, newCategoryId)
+                changed++
+            }
+        }
+        return changed
+    }
+
+    /** User-triggered re-apply (e.g. after editing several rules); surfaces a result count. */
+    fun reapplyRulesToExistingTransactions() {
+        viewModelScope.launch {
+            _reapplyResult.value = reapplyRules()
         }
     }
 

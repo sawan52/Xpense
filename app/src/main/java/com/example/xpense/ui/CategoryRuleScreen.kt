@@ -41,8 +41,21 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     var editingCategory      by remember { mutableStateOf<Category?>(null) }
     var deletingCategory     by remember { mutableStateOf<Category?>(null) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val reapplyResult by viewModel.reapplyResult.collectAsState()
+    LaunchedEffect(reapplyResult) {
+        reapplyResult?.let { count ->
+            snackbarHostState.showSnackbar(
+                if (count == 0) "All transactions already match the rules"
+                else "Recategorized $count transaction${if (count == 1) "" else "s"}"
+            )
+            viewModel.clearReapplyResult()
+        }
+    }
+
     Scaffold(
         containerColor = DarkBg,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Settings", color = TextPrimary, fontWeight = FontWeight.Bold) },
@@ -92,6 +105,24 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(PurplePrimary.copy(alpha = 0.12f))
+                                .clickable { viewModel.reapplyRulesToExistingTransactions() }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Re-apply rules", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Recategorize existing transactions with these rules", color = TextMuted, fontSize = 12.sp)
+                            }
+                        }
+                    }
                     items(rules, key = { it.id }) { rule ->
                         val category = categories.find { it.id == rule.categoryId }
                             ?: Category(name = "Unknown", iconName = "Category")
