@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.example.xpense.ui.components.SparklineChart
 import com.example.xpense.ui.components.SpendingLineChart
 import com.example.xpense.ui.theme.*
@@ -32,9 +31,6 @@ import java.util.*
 fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
     val allExpenses    by viewModel.allExpenses.collectAsState()
     val lastSixMonths  by viewModel.lastSixMonthsTotals.collectAsState()
-    val syncProgress   by viewModel.syncProgress.collectAsState()
-    val showSyncConfirm by viewModel.showSyncConfirm.collectAsState()
-    val syncMessage    by viewModel.syncMessage.collectAsState()
 
     val totalAmount = allExpenses.sumOf { it.expense.amount }
 
@@ -86,7 +82,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Notifications, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.Sync, "Sync SMS history", tint = TextSecondary, modifier = Modifier.size(22.dp))
                 }
                 Box(
                     modifier = Modifier
@@ -311,64 +307,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
         }
 
         Spacer(Modifier.height(100.dp))
-    }
-
-    // ── Sync confirm dialog ───────────────────────────────────────────────
-    if (showSyncConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.hideSyncConfirm() },
-            containerColor = DarkCard,
-            title = { Text("Confirm Sync", color = TextPrimary, fontWeight = FontWeight.Bold) },
-            text = { Text("Scan your SMS inbox (last 6 months) for bank transactions?", color = TextSecondary) },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.confirmSyncAndStart() },
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-                ) { Text("Yes, Sync Now", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.hideSyncConfirm() }) { Text("Cancel", color = TextSecondary) }
-            }
-        )
-    }
-
-    // ── Sync progress dialog ──────────────────────────────────────────────
-    if (syncProgress != null) {
-        Dialog(onDismissRequest = {}) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(DarkCard)
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    CircularProgressIndicator(
-                        progress = { syncProgress!! },
-                        color = PurplePrimary,
-                        modifier = Modifier.size(64.dp),
-                        strokeWidth = 6.dp
-                    )
-                    Text("Scanning Messages…", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("${(syncProgress!! * 100).toInt()}% complete", color = TextSecondary, fontSize = 13.sp)
-                }
-            }
-        }
-    }
-
-    // ── Sync done message ─────────────────────────────────────────────────
-    if (syncMessage != null) {
-        AlertDialog(
-            onDismissRequest = { viewModel.clearSyncMessage() },
-            containerColor = DarkCard,
-            title = { Text("Sync Complete", color = TextPrimary) },
-            text = { Text(syncMessage!!, color = TextSecondary) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.clearSyncMessage() }) {
-                    Text("OK", color = PurpleLight, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
     }
 }
 

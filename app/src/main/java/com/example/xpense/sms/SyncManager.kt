@@ -4,8 +4,10 @@ import android.content.Context
 import android.provider.Telephony
 import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import java.util.*
 
 class SyncManager(private val context: Context) {
@@ -65,7 +67,7 @@ class SyncManager(private val context: Context) {
         }
         
         emit(SyncProgress.Completed)
-    }
+    }.flowOn(Dispatchers.IO)
 
     sealed class SyncProgress {
         object Started : SyncProgress()

@@ -91,6 +91,8 @@ class MainActivity : ComponentActivity() {
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
                             }
                         }
+                        // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
+                        SyncDialogs(viewModel)
                     } else {
                         // Permission denied state
                         Box(
