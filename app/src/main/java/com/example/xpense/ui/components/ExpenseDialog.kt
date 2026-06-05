@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -69,6 +71,8 @@ fun AddExpenseBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // Open fully expanded so the multi-field form has room and fields stay clear of the keyboard.
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = DarkCard,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
@@ -83,6 +87,10 @@ fun AddExpenseBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Scroll + imePadding so the keyboard never hides the focused field: the content
+                // scrolls and the focused text field is auto-brought into view above the keyboard.
+                .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
