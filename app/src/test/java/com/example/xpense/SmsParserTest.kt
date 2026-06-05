@@ -65,6 +65,34 @@ class SmsParserTest {
     }
 
     @Test
+    fun testHdfcCardTxnAlertParsed() {
+        // HDFC card UPI alert: no explicit debit verb, signals spend with "Txn"
+        val sms = """
+            Txn Rs.1607.00
+            On HDFC Bank Card 1234
+            At poyfsnoesm.rzp@mairtel
+            by UPI 123466789012
+            On 01-06
+            Not You?
+            Call 1800180018/SMS BLOCK CC 1234 to 7312345678
+        """.trimIndent()
+        val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(transaction)
+        assertEquals(1607.0, transaction?.amount)
+        assertEquals("poyfsnoesm.rzp@mairtel", transaction?.merchant)
+    }
+
+    @Test
+    fun testCreditTxnAlertIgnored() {
+        // A "Txn" alert that is actually a credit must still be rejected
+        val sms = "Txn Rs.500.00 credited to your HDFC Bank Card 1234"
+        val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNull(transaction)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

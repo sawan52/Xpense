@@ -13,12 +13,19 @@ object SmsParser {
         "(?i)\\b(OTP|one.time.password|verification code|login code|login otp|secret pin|entered wrong pin)\\b"
     )
 
-    // Debit action keywords — added "debit" (noun form) and "withdrawal"
+    // Explicit debit/spend verbs — strong signal that money left the account
     private val DEBIT_PATTERN = Pattern.compile(
         "(?i)\\b(debited|debit|spent|paid|sent|transferred|deducted|withdrawn|withdrawal|purchase|charged)\\b"
     )
 
-    // Credit-only keywords — only used to reject when NO debit keyword is also present
+    // Generic transaction-alert words. Many bank/card alerts (e.g. HDFC card UPI alerts)
+    // never use an explicit debit verb — they just say "Txn Rs.X On Card... At <merchant>".
+    // Treated as a spend UNLESS a credit keyword is present (see CREDIT_PATTERN below).
+    private val TXN_PATTERN = Pattern.compile(
+        "(?i)\\b(txn|transaction)\\b"
+    )
+
+    // Credit-only keywords — used to reject credits/refunds that lack an explicit debit verb
     private val CREDIT_PATTERN = Pattern.compile(
         "(?i)\\b(credited|received|deposited|refunded|cashback|reversal|reversed)\\b"
     )
@@ -41,16 +48,21 @@ object SmsParser {
         }
 
         val hasDebit = DEBIT_PATTERN.matcher(lowerBody).find()
-        if (!hasDebit) {
-            Log.d(TAG, "SKIP (no debit keyword): ${smsBody.take(80)}")
+        val hasTxn = TXN_PATTERN.matcher(lowerBody).find()
+        if (!hasDebit && !hasTxn) {
+            Log.d(TAG, "SKIP (no debit/txn keyword): ${smsBody.take(80)}")
             return null
         }
 
-        // If the SMS has only credit action words and no debit word — it's a credit/refund SMS.
-        // If debit word IS present (checked above), we allow it even if "credited" also appears
-        // (balance notifications like "Avl Bal: Rs.4500 (Cr)" are common in debit SMS).
-        // But if the message primarily says "credited" without any debit keyword we already
-        // returned null above — so nothing extra needed here.
+        // Reject credits/refunds. A credit keyword combined with NO explicit debit verb
+        // means the money came IN (e.g. "Txn Rs.X credited", refunds, cashback). When an
+        // explicit debit verb IS present we still allow it, because a trailing balance
+        // notice like "Avl Bal: Rs.4500 (Cr)" is common inside genuine debit SMS.
+        val hasCredit = CREDIT_PATTERN.matcher(lowerBody).find()
+        if (hasCredit && !hasDebit) {
+            Log.d(TAG, "SKIP (credit/refund): ${smsBody.take(80)}")
+            return null
+        }
 
         val amountMatcher = AMOUNT_PATTERN.matcher(smsBody)
         if (!amountMatcher.find()) {
@@ -82,7 +94,9 @@ object SmsParser {
         for (p in patterns) {
             val m = p.matcher(smsBody)
             if (m.find()) {
-                val candidate = m.group(1)?.trim()?.take(25) ?: continue
+                // Stop at a line break so a merchant on its own line doesn't swallow the next line.
+                val candidate = m.group(1)?.substringBefore("\n")?.trim()?.take(25) ?: continue
+                if (candidate.isEmpty()) continue
                 // Reject if it looks like a bank/account phrase
                 if (candidate.lowercase().contains("your") ||
                     candidate.lowercase().contains("account") ||

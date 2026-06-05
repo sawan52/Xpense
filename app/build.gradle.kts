@@ -49,6 +49,9 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true // let unmocked android.util.Log calls no-op in JVM tests
+    }
 }
 
 dependencies {
