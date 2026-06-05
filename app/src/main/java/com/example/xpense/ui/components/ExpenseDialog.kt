@@ -227,10 +227,10 @@ fun AddExpenseBottomSheet(
                         value = dateFmt.format(Date(dateMillis)),
                         onValueChange = {},
                         readOnly = true,
+                        onClick = { showDatePicker = true },
                         leadingIcon = {
                             Icon(Icons.Default.CalendarToday, null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                        },
-                        modifier = Modifier.clickable { showDatePicker = true }
+                        }
                     )
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -239,10 +239,10 @@ fun AddExpenseBottomSheet(
                         value = timeFmt.format(Date(dateMillis)),
                         onValueChange = {},
                         readOnly = true,
+                        onClick = { showTimePicker = true },
                         leadingIcon = {
                             Icon(Icons.Default.Schedule, null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                        },
-                        modifier = Modifier.clickable { showTimePicker = true }
+                        }
                     )
                 }
             }
@@ -336,27 +336,40 @@ fun SheetTextField(
     modifier: Modifier = Modifier,
     placeholder: String = "",
     readOnly: Boolean = false,
+    onClick: (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
     keyboardType: KeyboardType = KeyboardType.Text
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        readOnly = readOnly,
-        placeholder = { Text(placeholder, color = TextMuted, fontSize = 14.sp) },
-        leadingIcon = leadingIcon,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = PurplePrimary,
-            unfocusedBorderColor = DarkBorder,
-            focusedContainerColor = DarkSurface,
-            unfocusedContainerColor = DarkSurface,
-            focusedTextColor = TextPrimary,
-            unfocusedTextColor = TextPrimary,
-            cursorColor = PurpleLight
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            readOnly = readOnly,
+            placeholder = { Text(placeholder, color = TextMuted, fontSize = 14.sp) },
+            leadingIcon = leadingIcon,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PurplePrimary,
+                unfocusedBorderColor = DarkBorder,
+                focusedContainerColor = DarkSurface,
+                unfocusedContainerColor = DarkSurface,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                cursorColor = PurpleLight
+            )
         )
-    )
+        // A read-only TextField still swallows tap/focus, so a .clickable on the field itself
+        // never fires. Overlay a transparent layer on top to intercept taps for picker fields.
+        if (onClick != null) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onClick() }
+            )
+        }
+    }
 }
