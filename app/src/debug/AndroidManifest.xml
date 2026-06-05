@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only: adds the SIMULATE_SMS test action to SmsReceiver so transactions can be
+    injected via `adb shell am broadcast -a com.example.xpense.SIMULATE_SMS ...` during
+    development. This intent-filter is merged ONLY into debug builds, so the release app
+    has no externally triggerable injection point.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <receiver
+            android:name=".sms.SmsReceiver"
+            android:exported="true"
+            tools:node="merge">
+            <intent-filter>
+                <action android:name="com.example.xpense.SIMULATE_SMS" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

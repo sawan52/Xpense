@@ -7,7 +7,7 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -15,12 +15,14 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.Xpense">
+        <!-- Must be exported to receive the system SMS_RECEIVED broadcast (sent only by the OS,
+             gated by the BROADCAST_SMS signature permission). The debug-only SIMULATE_SMS test
+             hook is declared in src/debug so it never ships in release builds. -->
         <receiver
             android:name=".sms.SmsReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-                <action android:name="com.example.xpense.SIMULATE_SMS" />
             </intent-filter>
         </receiver>
 
