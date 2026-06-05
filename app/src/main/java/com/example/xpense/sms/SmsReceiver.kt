@@ -76,7 +76,8 @@ class SmsReceiver : BroadcastReceiver() {
                 merchant = transaction.merchant,
                 date = timestamp,
                 categoryId = transaction.categoryId,
-                rawSms = body
+                rawSms = body,
+                dedupKey = body
             )
             db.expenseDao().insertExpense(expense)
             Log.d(TAG, "Saved expense: ₹${transaction.amount} @ ${transaction.merchant}")

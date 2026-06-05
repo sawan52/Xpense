@@ -53,7 +53,8 @@ class SyncManager(private val context: Context) {
                             merchant = transaction.merchant,
                             date = date,
                             categoryId = transaction.categoryId,
-                            rawSms = body
+                            rawSms = body,
+                            dedupKey = body
                         )
                         expenseDao.insertExpense(expense)
                     }

@@ -14,7 +14,7 @@ import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
 
-@Database(entities = [Expense::class, CategoryRule::class, Category::class], version = 4, exportSchema = false)
+@Database(entities = [Expense::class, CategoryRule::class, Category::class], version = 5, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun categoryRuleDao(): CategoryRuleDao
@@ -32,6 +32,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Enforce no-duplicate SMS transactions at the DB level. Adds a nullable dedupKey
+        // (= SMS body for SMS rows, null for manual rows), cleans up any pre-existing
+        // duplicates, then adds a unique index. NULLs are allowed multiple times, so manual
+        // entries stay unconstrained. Index name must match Room's expected index_expenses_dedupKey.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE expenses ADD COLUMN dedupKey TEXT")
+                db.execSQL(
+                    "UPDATE expenses SET dedupKey = rawSms " +
+                        "WHERE rawSms NOT IN ('Manual Entry','Manual Update')"
+                )
+                db.execSQL(
+                    "DELETE FROM expenses WHERE dedupKey IS NOT NULL AND id NOT IN (" +
+                        "SELECT MIN(id) FROM expenses WHERE dedupKey IS NOT NULL GROUP BY dedupKey)"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_expenses_dedupKey ON expenses(dedupKey)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -39,7 +58,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_database"
                 )
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance

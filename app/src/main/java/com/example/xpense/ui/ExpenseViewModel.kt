@@ -256,18 +256,29 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         _showSyncConfirm.value = true
     }
 
+    @Volatile
+    private var isSyncing = false
+
     fun confirmSyncAndStart() {
         _showSyncConfirm.value = false
+        // Guard against overlapping syncs: a second run could otherwise race the first and
+        // insert duplicates (the DB unique index is the backstop; this avoids it entirely).
+        if (isSyncing) return
+        isSyncing = true
         viewModelScope.launch {
-            syncManager.syncHistoricalSms().collect { progress ->
-                when (progress) {
-                    is SyncManager.SyncProgress.Started -> _syncProgress.value = 0f
-                    is SyncManager.SyncProgress.Progress -> _syncProgress.value = progress.percentage
-                    is SyncManager.SyncProgress.Completed -> {
-                        _syncProgress.value = null
-                        _syncMessage.value = "Historical sync completed!"
+            try {
+                syncManager.syncHistoricalSms().collect { progress ->
+                    when (progress) {
+                        is SyncManager.SyncProgress.Started -> _syncProgress.value = 0f
+                        is SyncManager.SyncProgress.Progress -> _syncProgress.value = progress.percentage
+                        is SyncManager.SyncProgress.Completed -> {
+                            _syncProgress.value = null
+                            _syncMessage.value = "Historical sync completed!"
+                        }
                     }
                 }
+            } finally {
+                isSyncing = false
             }
         }
     }

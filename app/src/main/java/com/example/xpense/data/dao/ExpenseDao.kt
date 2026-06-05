@@ -2,6 +2,7 @@ package com.example.xpense.data.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.xpense.data.entity.Expense
@@ -21,7 +22,9 @@ interface ExpenseDao {
     @Query("SELECT EXISTS(SELECT 1 FROM expenses WHERE rawSms = :rawSms)")
     suspend fun doesSmsExist(rawSms: String): Boolean
 
-    @Insert
+    // IGNORE so a racing duplicate SMS insert (same dedupKey) is dropped by the DB instead of
+    // throwing. Manual rows have dedupKey = null and never conflict.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertExpense(expense: Expense)
 
     @Update
