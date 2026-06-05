@@ -50,6 +50,9 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
     val pctChange = if (prevTotal > 0) ((curTotal - prevTotal) / prevTotal * 100).toInt() else 0
     val recentFour = allExpenses.take(4)
 
+    // Local UI-only toggle for masking the balance amount via the eye icon.
+    var balanceHidden by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -63,35 +66,18 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Menu, "Menu",
-                tint = TextSecondary,
-                modifier = Modifier
-                    .size(28.dp)
-                    .padding(top = 4.dp)
-            )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start
+            ) {
                 Text(greeting, color = TextSecondary, fontSize = 13.sp)
                 Text("Sawan 👋", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("You're doing great! Keep it up.", color = TextMuted, fontSize = 12.sp)
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.Sync, "Sync SMS history", tint = TextSecondary, modifier = Modifier.size(22.dp))
-                }
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(Brush.linearGradient(listOf(PurplePrimary, PurpleLight)), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("S", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
+            IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Default.Sync, "Sync SMS history", tint = TextSecondary, modifier = Modifier.size(22.dp))
             }
         }
 
@@ -113,11 +99,18 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Total Balance", color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp)
-                    Icon(Icons.Default.Visibility, null, tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(20.dp))
+                    Icon(
+                        if (balanceHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        if (balanceHidden) "Show balance" else "Hide balance",
+                        tint = Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clickable { balanceHidden = !balanceHidden }
+                    )
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "₹${String.format("%,.2f", totalAmount)}",
+                    if (balanceHidden) "₹ ••••••" else "₹${String.format("%,.2f", totalAmount)}",
                     color = Color.White,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold
@@ -173,10 +166,8 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            QuickActionItem(Icons.Default.Add,       "Add Expense",  Modifier.weight(1f)) { onAddExpense() }
-            QuickActionItem(Icons.Default.CameraAlt, "Scan Receipt", Modifier.weight(1f)) { }
-            QuickActionItem(Icons.Default.PieChart,  "Insights",     Modifier.weight(1f)) { viewModel.navigateTo(Screen.INSIGHTS) }
-            QuickActionItem(Icons.Default.GridView,  "Categories",   Modifier.weight(1f)) { viewModel.navigateTo(Screen.CATEGORY_RULES) }
+            QuickActionItem(Icons.Default.Add,      "Add Expense", Modifier.weight(1f)) { onAddExpense() }
+            QuickActionItem(Icons.Default.GridView, "Categories",  Modifier.weight(1f)) { viewModel.navigateTo(Screen.CATEGORY_RULES) }
         }
 
         Spacer(Modifier.height(28.dp))
