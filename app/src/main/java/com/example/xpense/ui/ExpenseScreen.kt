@@ -34,6 +34,7 @@ import com.example.xpense.ui.components.AddExpenseBottomSheet
 import com.example.xpense.ui.components.ConfirmDialog
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
+import com.example.xpense.ui.utils.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -235,7 +236,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             Column {
                                 Text("Amount", color = TextSecondary, fontSize = 12.sp)
                                 Text(
-                                    "₹${String.format("%,.0f", totalAmount)}",
+                                    "₹${CurrencyUtils.format(totalAmount, 0)}",
                                     color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold
                                 )
                             }
@@ -370,7 +371,7 @@ fun InsightsDonut(summary: Map<Category, Double>, totalAmount: Double, pctChange
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Total Spent", color = TextSecondary, fontSize = 10.sp)
             Text(
-                "₹${String.format("%,.0f", totalAmount)}",
+                "₹${CurrencyUtils.format(totalAmount, 0)}",
                 color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold
             )
             val sign = if (pctChange >= 0) "↑" else "↓"
@@ -402,7 +403,7 @@ fun buildInsights(
             icon = CategoryUtils.getCategoryIcon(it),
             iconColor = CategoryUtils.getCategoryColor(it),
             title = "${it.name} is your highest expense category",
-            subtitle = "You spent ₹${String.format("%,.0f", topAmt ?: 0.0)} this month"
+            subtitle = "You spent ₹${CurrencyUtils.format(topAmt ?: 0.0, 0)} this month"
         ))
     }
     val saved = prevTotal - totalAmount
@@ -410,7 +411,7 @@ fun buildInsights(
         add(InsightItem(
             icon = Icons.Default.Savings,
             iconColor = GreenPositive,
-            title = "You saved ₹${String.format("%,.0f", saved)} compared to last month",
+            title = "You saved ₹${CurrencyUtils.format(saved, 0)} compared to last month",
             subtitle = "Well done!"
         ))
     }
@@ -485,7 +486,7 @@ fun DarkTransactionCard(
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "-₹${String.format("%.2f", item.expense.amount)}",
+                    "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
                     color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
                 if (item.expense.rawSms != "Manual Entry" && item.expense.rawSms != "Manual Update") {

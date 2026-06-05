@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.utils.CurrencyUtils
 
 @Composable
 fun ProfileScreen(viewModel: ExpenseViewModel) {
@@ -72,7 +73,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         StatChip("${allExpenses.size}", "Transactions")
-                        StatChip("₹${String.format("%,.0f", totalAmount)}", "Total Spent")
+                        StatChip("₹${CurrencyUtils.format(totalAmount, 0)}", "Total Spent")
                     }
                 }
             }

@@ -24,6 +24,7 @@ import com.example.xpense.ui.components.SparklineChart
 import com.example.xpense.ui.components.SpendingLineChart
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
+import com.example.xpense.ui.utils.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -110,7 +111,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (balanceHidden) "₹ ••••••" else "₹${String.format("%,.2f", totalAmount)}",
+                    if (balanceHidden) "₹ ••••••" else "₹${CurrencyUtils.format(totalAmount, 2)}",
                     color = Color.White,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold
@@ -275,7 +276,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    "-₹${String.format("%.2f", item.expense.amount)}",
+                                    "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
                                     color = RedNegative,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
+import com.example.xpense.ui.utils.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -152,7 +153,7 @@ fun InsightsDetailScreen(viewModel: ExpenseViewModel) {
                                     }
                                 }
                                 Text(
-                                    "₹${String.format("%,.0f", amount)}",
+                                    "₹${CurrencyUtils.format(amount, 0)}",
                                     color = TextSecondary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium

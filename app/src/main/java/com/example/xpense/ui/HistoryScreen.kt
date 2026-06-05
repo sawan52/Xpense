@@ -19,6 +19,7 @@ import com.example.xpense.data.entity.Expense
 import com.example.xpense.ui.components.AddExpenseBottomSheet
 import com.example.xpense.ui.components.ConfirmDialog
 import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.utils.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -110,7 +111,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                         ) {
                             Text(label, color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             Text(
-                                "₹${String.format("%,.2f", dayTotal)}",
+                                "₹${CurrencyUtils.format(dayTotal, 2)}",
                                 color = TextMuted, fontSize = 12.sp
                             )
                         }
