@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.example.xpense.data.entity.CategoryRule
 import kotlinx.coroutines.flow.Flow
 
@@ -17,6 +18,9 @@ interface CategoryRuleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRule(rule: CategoryRule)
+
+    @Update
+    suspend fun updateRule(rule: CategoryRule)
 
     @Query("DELETE FROM category_rules WHERE id = :id")
     suspend fun deleteRule(id: Long)

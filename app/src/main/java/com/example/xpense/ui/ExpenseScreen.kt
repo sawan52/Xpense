@@ -31,6 +31,7 @@ import androidx.compose.foundation.Canvas
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.ui.components.AddExpenseBottomSheet
+import com.example.xpense.ui.components.ConfirmDialog
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
 import java.text.SimpleDateFormat
@@ -51,6 +52,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
 
     var showEditSheet by remember { mutableStateOf(false) }
     var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(availableMonths) {
         if (selectedMonth == null && availableMonths.isNotEmpty()) {
@@ -99,7 +101,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    IconButton(onClick = { viewModel.deleteSelected() }) {
+                    IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, null, tint = RedNegative)
                     }
                     IconButton(onClick = { viewModel.exitSelectionMode() }) {
@@ -342,6 +344,19 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        val count = selectedIds.size
+        ConfirmDialog(
+            title = "Delete Transaction${if (count == 1) "" else "s"}",
+            message = "Delete $count transaction${if (count == 1) "" else "s"}? This can't be undone.",
+            onConfirm = {
+                viewModel.deleteSelected()
+                showDeleteConfirm = false
+            },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }

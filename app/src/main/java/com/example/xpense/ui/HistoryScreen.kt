@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.ui.components.AddExpenseBottomSheet
+import com.example.xpense.ui.components.ConfirmDialog
 import com.example.xpense.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -30,6 +31,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
 
     var showEditSheet by remember { mutableStateOf(false) }
     var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     BackHandler(enabled = isSelectionMode) { viewModel.exitSelectionMode() }
 
@@ -65,7 +67,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    IconButton(onClick = { viewModel.deleteSelected() }) {
+                    IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, null, tint = RedNegative)
                     }
                     IconButton(onClick = { viewModel.exitSelectionMode() }) {
@@ -141,6 +143,19 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        val count = selectedIds.size
+        ConfirmDialog(
+            title = "Delete Transaction${if (count == 1) "" else "s"}",
+            message = "Delete $count transaction${if (count == 1) "" else "s"}? This can't be undone.",
+            onConfirm = {
+                viewModel.deleteSelected()
+                showDeleteConfirm = false
+            },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }

@@ -118,6 +118,21 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateRule(id: Long, keyword: String, categoryId: Long, label: String? = null) {
+        viewModelScope.launch {
+            ruleDao.updateRule(
+                CategoryRule(
+                    id = id,
+                    keyword = keyword,
+                    categoryId = categoryId,
+                    label = label?.trim()?.takeIf { it.isNotBlank() }
+                )
+            )
+            // Re-apply so the edited rule retro-categorizes existing transactions, matching addRule.
+            reapplyRules()
+        }
+    }
+
     fun deleteRule(id: Long) {
         viewModelScope.launch {
             ruleDao.deleteRule(id)

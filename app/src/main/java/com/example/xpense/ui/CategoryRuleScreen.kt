@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.CategoryRule
+import com.example.xpense.ui.components.ConfirmDialog
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
 
@@ -40,6 +41,8 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var editingCategory      by remember { mutableStateOf<Category?>(null) }
     var deletingCategory     by remember { mutableStateOf<Category?>(null) }
+    var editingRule          by remember { mutableStateOf<CategoryRule?>(null) }
+    var deletingRule         by remember { mutableStateOf<CategoryRule?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val reapplyResult by viewModel.reapplyResult.collectAsState()
@@ -126,7 +129,12 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                     items(rules, key = { it.id }) { rule ->
                         val category = categories.find { it.id == rule.categoryId }
                             ?: Category(name = "Unknown", iconName = "Category")
-                        DarkRuleItem(rule = rule, category = category, onDelete = { viewModel.deleteRule(rule.id) })
+                        DarkRuleItem(
+                            rule = rule,
+                            category = category,
+                            onEdit = { editingRule = rule },
+                            onDelete = { deletingRule = rule }
+                        )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -158,6 +166,34 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 viewModel.addRule(keyword, categoryId, label)
                 showAddRuleDialog = false
             }
+        )
+    }
+
+    editingRule?.let { rule ->
+        DarkAddRuleDialog(
+            categories = categories,
+            initialKeyword = rule.keyword,
+            initialLabel = rule.label ?: "",
+            initialCategoryId = rule.categoryId,
+            title = "Edit Rule",
+            confirmLabel = "Save",
+            onDismiss = { editingRule = null },
+            onConfirm = { keyword, categoryId, label ->
+                viewModel.updateRule(rule.id, keyword, categoryId, label)
+                editingRule = null
+            }
+        )
+    }
+
+    deletingRule?.let { rule ->
+        ConfirmDialog(
+            title = "Delete Rule",
+            message = "Delete the rule for \"${rule.keyword}\"? This won't change existing transactions.",
+            onConfirm = {
+                viewModel.deleteRule(rule.id)
+                deletingRule = null
+            },
+            onDismiss = { deletingRule = null }
         )
     }
 
@@ -213,7 +249,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
 }
 
 @Composable
-fun DarkRuleItem(rule: CategoryRule, category: Category, onDelete: () -> Unit) {
+fun DarkRuleItem(rule: CategoryRule, category: Category, onEdit: () -> Unit, onDelete: () -> Unit) {
     val color = CategoryUtils.getCategoryColor(category)
     Row(
         modifier = Modifier
@@ -236,6 +272,9 @@ fun DarkRuleItem(rule: CategoryRule, category: Category, onDelete: () -> Unit) {
             Text(rule.keyword, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             val subtitle = rule.label?.let { "${category.name} • $it" } ?: category.name
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
+        }
+        IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Default.Edit, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
         }
         IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Default.Delete, null, tint = RedNegative.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
@@ -322,16 +361,27 @@ fun DarkCategoryItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfirm: (String, Long, String?) -> Unit) {
-    var keyword by remember { mutableStateOf("") }
-    var label by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf(categories.firstOrNull()?.id ?: 0L) }
+fun DarkAddRuleDialog(
+    categories: List<Category>,
+    initialKeyword: String = "",
+    initialLabel: String = "",
+    initialCategoryId: Long? = null,
+    title: String = "Map Keyword to Category",
+    confirmLabel: String = "Add Rule",
+    onDismiss: () -> Unit,
+    onConfirm: (String, Long, String?) -> Unit
+) {
+    var keyword by remember { mutableStateOf(initialKeyword) }
+    var label by remember { mutableStateOf(initialLabel) }
+    var selectedCategoryId by remember {
+        mutableStateOf(initialCategoryId ?: categories.firstOrNull()?.id ?: 0L)
+    }
     var expanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
-        title = { Text("Map Keyword to Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        title = { Text(title, color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
@@ -402,7 +452,7 @@ fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfi
                 onClick = { onConfirm(keyword, selectedCategoryId, label.ifBlank { null }) },
                 enabled = keyword.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-            ) { Text("Add Rule") }
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
