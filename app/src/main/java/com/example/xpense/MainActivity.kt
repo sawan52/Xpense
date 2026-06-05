@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
                             when (currentScreen) {
                                 Screen.HOME           -> SummaryScreen(viewModel, onAddExpense = { showAddSheet = true })
                                 Screen.INSIGHTS       -> ExpenseScreen(viewModel)
+                                Screen.INSIGHTS_DETAIL -> InsightsDetailScreen(viewModel)
                                 Screen.HISTORY        -> HistoryScreen(viewModel)
                                 Screen.PROFILE        -> ProfileScreen(viewModel)
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)

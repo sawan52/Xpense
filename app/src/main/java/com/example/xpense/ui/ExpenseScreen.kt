@@ -53,6 +53,15 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
     var showEditSheet by remember { mutableStateOf(false) }
     var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var searchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Search narrows only the month's transaction list (charts stay on the month total).
+    val visibleExpenses = if (searchQuery.isBlank()) filteredExpenses else filteredExpenses.filter {
+        it.expense.merchant.contains(searchQuery, ignoreCase = true) ||
+            it.category.name.contains(searchQuery, ignoreCase = true) ||
+            it.expense.amount.toString().contains(searchQuery)
+    }
 
     LaunchedEffect(availableMonths) {
         if (selectedMonth == null && availableMonths.isNotEmpty()) {
@@ -108,11 +117,46 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                         Icon(Icons.Default.Close, null, tint = TextSecondary)
                     }
                 } else {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.FilterList, null, tint = TextSecondary)
+                    IconButton(onClick = {
+                        searchActive = !searchActive
+                        if (!searchActive) searchQuery = ""
+                    }) {
+                        Icon(Icons.Default.Search, "Search transactions", tint = if (searchActive) PurpleLight else TextSecondary)
                     }
                 }
             }
+        }
+
+        // ── Search bar (toggled by the header search icon) ────────────────
+        if (searchActive && !isSelectionMode) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search transactions…", color = TextMuted, fontSize = 14.sp) },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted, modifier = Modifier.size(20.dp)) },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        if (searchQuery.isBlank()) searchActive = false else searchQuery = ""
+                    }) {
+                        Icon(Icons.Default.Close, "Clear search", tint = TextMuted, modifier = Modifier.size(20.dp))
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = PurplePrimary,
+                    unfocusedBorderColor = DarkBorder,
+                    focusedContainerColor = DarkCard,
+                    unfocusedContainerColor = DarkCard,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = PurpleLight
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 12.dp)
+            )
         }
 
         // ── Month chips ───────────────────────────────────────────────────
@@ -200,103 +244,31 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 }
             }
 
-            // ── Category breakdown ────────────────────────────────────────
+            // ── View Breakdown button (opens Category Breakdown + Smart Insights) ──
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Category Breakdown", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("View All", color = PurpleLight, fontSize = 13.sp,
-                        modifier = Modifier.clickable { viewModel.navigateTo(Screen.CATEGORY_RULES) })
-                }
-            }
-            item {
-                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(DarkCard)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .clickable { viewModel.navigateTo(Screen.INSIGHTS_DETAIL) }
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val sorted = summary.entries.sortedByDescending { it.value }
-                    sorted.forEach { (cat, amount) ->
-                        val pct = if (totalAmount > 0) (amount / totalAmount * 100).toInt() else 0
-                        val color = CategoryUtils.getCategoryColor(cat)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(color.copy(alpha = 0.15f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(CategoryUtils.getCategoryIcon(cat), null, tint = color, modifier = Modifier.size(18.dp))
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(cat.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                    Text("$pct%", color = TextSecondary, fontSize = 13.sp)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(5.dp)
-                                        .clip(CircleShape)
-                                        .background(DarkSurface)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth(pct / 100f)
-                                            .fillMaxHeight()
-                                            .clip(CircleShape)
-                                            .background(color)
-                                    )
-                                }
-                            }
-                            Text(
-                                "₹${String.format("%,.0f", amount)}",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(PurplePrimary.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.PieChart, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
                     }
-                }
-            }
-
-            // ── Smart insights ────────────────────────────────────────────
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Smart Insights", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("View All", color = PurpleLight, fontSize = 13.sp)
-                }
-            }
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(DarkCard)
-                        .padding(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                ) {
-                    val insights = buildInsights(pctChange, topEntry?.key, topEntry?.value, totalAmount, prevTotal)
-                    insights.forEachIndexed { i, insight ->
-                        SmartInsightRow(insight = insight)
-                        if (i < insights.size - 1) HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("View Breakdown", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Category breakdown & smart insights", color = TextMuted, fontSize = 12.sp)
                     }
+                    Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, null, tint = TextMuted, modifier = Modifier.size(14.dp))
                 }
             }
 
@@ -304,7 +276,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
             item {
                 Text("Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-            items(filteredExpenses, key = { it.expense.id }) { item ->
+            items(visibleExpenses, key = { it.expense.id }) { item ->
                 DarkTransactionCard(
                     item = item,
                     isSelected = selectedIds.contains(item.expense.id),
@@ -313,7 +285,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                     onLongClick = { viewModel.enterSelectionMode(item.expense.id) }
                 )
             }
-            if (filteredExpenses.isEmpty()) {
+            if (visibleExpenses.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -323,7 +295,11 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             .padding(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No transactions this month", color = TextMuted, fontSize = 14.sp)
+                        Text(
+                            if (searchQuery.isBlank()) "No transactions this month"
+                            else "No transactions match \"$searchQuery\"",
+                            color = TextMuted, fontSize = 14.sp
+                        )
                     }
                 }
             }

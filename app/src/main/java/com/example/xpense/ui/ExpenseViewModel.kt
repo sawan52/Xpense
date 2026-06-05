@@ -15,7 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, HISTORY, PROFILE, CATEGORY_RULES
+    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES
 }
 
 class ExpenseViewModel(application: Application) : AndroidViewModel(application) {
