@@ -159,6 +159,133 @@ class SmsParserTest {
     }
 
     @Test
+    fun testRuleLabelOverridesMerchant() {
+        // A NACH SIP debit has no usable merchant text; a rule label names it ("MF SIP").
+        val categoriesWithInvest = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(CategoryRule(id = 1, keyword = "groww invest", categoryId = 7L, label = "MF SIP"))
+        val sms = "BOI - Rs 4000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - GROWW INVEST TEC ON 03-06-2026. Avl Bal 32902.85"
+
+        val txn = SmsParser.parseTransaction(sms, rules, categoriesWithInvest)
+
+        assertNotNull(txn)
+        assertEquals(4000.0, txn?.amount)
+        assertEquals(7L, txn?.categoryId)          // Investment
+        assertEquals("MF SIP", txn?.merchant)      // rule label wins over auto-extraction
+    }
+
+    @Test
+    fun testRuleWithoutLabelKeepsExtractedMerchant() {
+        // A rule with no label only re-categorizes; the auto-extracted merchant is preserved.
+        val rules = listOf(CategoryRule(id = 1, keyword = "amazon", categoryId = 2L, label = null))
+        val sms = "Rs 1500.0 spent at Amazon on 10-Feb-24."
+
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(2L, txn?.categoryId)
+        // No label => merchant comes from SMS extraction, not from the rule.
+        assertEquals(true, txn?.merchant?.contains("Amazon", ignoreCase = true))
+    }
+
+    @Test
+    fun testCategorizationForReturnsLabel() {
+        // The retro-apply path surfaces the matched rule's label so it can refresh the name.
+        val categoriesWithInvest = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(CategoryRule(id = 1, keyword = "groww invest", categoryId = 7L, label = "MF SIP"))
+        val sms = "BOI - Rs 4000.00 Debited (NACH) - NACH DR INW - GROWW INVEST TEC"
+
+        val result = SmsParser.categorizationFor(sms, rules, categoriesWithInvest)
+
+        assertEquals(7L, result.categoryId)
+        assertEquals("MF SIP", result.label)
+    }
+
+    @Test
+    fun testMutualFundAllotmentConfirmationSkipped() {
+        // AMC allotment confirmation — informational, the real debit is a separate bank SMS.
+        // "purchase request" would otherwise trip the debit check.
+        val sms = "Dear Investor, Your purchase request dated 02/06/2026 in scheme MOMF Midcap " +
+            "Fund - Direct Plan Growth under the Folio No 1234567890 for Rs. 3849.81 is processed " +
+            "and 36.443 units are allotted in demat mode @ NAV Rs. 105.639. Please contact you DP " +
+            "for any queries on your demat account. Motilal Oswal MF."
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testNachInvestmentDebitStillParsed() {
+        // The bank NACH debit (the actual money outflow) must STILL be recorded — it has none
+        // of the allotment/NAV/folio/demat confirmation words.
+        val sms = "BOI - Rs 4000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - GROWW INVEST TEC ON 03-06-2026. Avl Bal 32902.85"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(4000.0, txn?.amount)
+    }
+
+    @Test
+    fun testMultiKeywordRuleRequiresAllKeywords() {
+        // "nach, groww invest" (AND) matches only the Groww SMS, not the Indian Clearing one.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "nach, groww invest", categoryId = 7L, label = "MF SIP"),
+            CategoryRule(id = 2, keyword = "nach, indian clearing", categoryId = 7L, label = "MF SIP")
+        )
+        val groww = "BOI - Rs 4000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - GROWW INVEST TEC ON 03-06-2026. Avl Bal 32902.85"
+        val clearing = "BOI - Rs 6000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - Indian Clearing ON 03-06-2026. Avl Bal 36902.85"
+
+        val growwTxn = SmsParser.parseTransaction(groww, rules, cats)
+        assertNotNull(growwTxn)
+        assertEquals(7L, growwTxn?.categoryId)
+        assertEquals("MF SIP", growwTxn?.merchant)
+
+        val clearingTxn = SmsParser.parseTransaction(clearing, rules, cats)
+        assertNotNull(clearingTxn)
+        assertEquals(7L, clearingTxn?.categoryId)   // matched by rule 2, not rule 1
+        assertEquals("MF SIP", clearingTxn?.merchant)
+    }
+
+    @Test
+    fun testMultiKeywordRuleDoesNotMatchUnrelatedNach() {
+        // A generic NACH debit (no "groww invest") must NOT be caught by the multi-keyword rule.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(CategoryRule(id = 1, keyword = "nach, groww invest", categoryId = 7L, label = "MF SIP"))
+        val sms = "BOI - Rs 1200.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - LIC PREMIUM ON 03-06-2026."
+
+        val txn = SmsParser.parseTransaction(sms, rules, cats)
+        assertNotNull(txn)                          // still a valid debit...
+        assertEquals(5L, txn?.categoryId)           // ...but falls through to Others, not Investment
+        assertEquals(false, txn?.merchant == "MF SIP") // the rule's label was NOT applied
+    }
+
+    @Test
+    fun testMostSpecificRuleWins() {
+        // A generic single-keyword rule and a specific multi-keyword rule both "could" apply;
+        // the more specific (more keywords) one must win regardless of rule order.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "nach", categoryId = 4L),                          // generic -> Bills
+            CategoryRule(id = 2, keyword = "nach, groww invest", categoryId = 7L, label = "MF SIP") // specific -> Investment
+        )
+        val groww = "BOI - Rs 4000.00 Debited (NACH) - NACH DR INW - GROWW INVEST TEC"
+
+        val txn = SmsParser.parseTransaction(groww, rules, cats)
+        assertNotNull(txn)
+        assertEquals(7L, txn?.categoryId)           // Investment wins over Bills
+        assertEquals("MF SIP", txn?.merchant)
+    }
+
+    @Test
+    fun testSingleKeywordRuleStillWorks() {
+        // Backward compatibility: a plain single keyword behaves exactly as before.
+        val rules = listOf(CategoryRule(id = 1, keyword = "swiggy", categoryId = 1L))
+        val sms = "Rs.500.00 debited from A/c **1234 on 01-Jan-24 to VPA Swiggy"
+
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+        assertNotNull(txn)
+        assertEquals(1L, txn?.categoryId)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

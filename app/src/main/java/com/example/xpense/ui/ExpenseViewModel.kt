@@ -103,9 +103,15 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addRule(keyword: String, categoryId: Long) {
+    fun addRule(keyword: String, categoryId: Long, label: String? = null) {
         viewModelScope.launch {
-            ruleDao.insertRule(CategoryRule(keyword = keyword, categoryId = categoryId))
+            ruleDao.insertRule(
+                CategoryRule(
+                    keyword = keyword,
+                    categoryId = categoryId,
+                    label = label?.trim()?.takeIf { it.isNotBlank() }
+                )
+            )
             // Apply the new rule to transactions that were already imported so the effect
             // is visible immediately (otherwise only future SMS would be affected).
             reapplyRules()
@@ -135,9 +141,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         var changed = 0
         expenseDao.getAllExpensesList().forEach { exp ->
             if (exp.rawSms == "Manual Entry" || exp.rawSms == "Manual Update") return@forEach
-            val newCategoryId = SmsParser.categorizeFor(exp.rawSms, rules, categories)
-            if (newCategoryId != 0L && newCategoryId != exp.categoryId) {
-                expenseDao.updateExpenseCategory(exp.id, newCategoryId)
+            val result = SmsParser.categorizationFor(exp.rawSms, rules, categories)
+            val newCategoryId = if (result.categoryId != 0L) result.categoryId else exp.categoryId
+            // A rule label refreshes the display name too; otherwise keep the existing merchant.
+            val newMerchant = result.label?.takeIf { it.isNotBlank() } ?: exp.merchant
+            if (newCategoryId != exp.categoryId || newMerchant != exp.merchant) {
+                expenseDao.updateExpenseCategoryAndMerchant(exp.id, newCategoryId, newMerchant)
                 changed++
             }
         }

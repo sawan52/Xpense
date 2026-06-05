@@ -45,6 +45,21 @@ object SmsParser {
         ")"
     )
 
+    // Mutual-fund / demat CONFIRMATION & statement SMS — "units allotted", NAV, folio, demat.
+    // These are informational acknowledgements from the AMC/broker; the actual money debit arrives
+    // as a separate bank/NACH SMS and is already recorded. Counting the allotment confirmation too
+    // would double-count the investment. The trigger words never appear in a normal spend SMS, so
+    // this does NOT block genuine debits (incl. "NACH DR INW - GROWW INVEST" bank debits).
+    private val INVESTMENT_CONFIRMATION_PATTERN = Pattern.compile(
+        "(?i)(" +
+            "units?\\s+(are\\s+|were\\s+)?(allotted|allotment)" +   // "36.443 units are allotted"
+            "|allotment\\s+of\\b" +
+            "|folio\\s*(no|number|#)" +                            // "Folio No 1234567890"
+            "|@\\s*nav\\b|\\bnav\\s+(of\\s+)?(rs|inr)" +            // "@ NAV Rs. 105.639"
+            "|demat\\s+(mode|account)" +
+        ")"
+    )
+
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
@@ -67,6 +82,13 @@ object SmsParser {
         // carry debit verbs ("debited"/"paid").
         if (CARD_PAYMENT_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (credit card bill payment): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Mutual-fund/demat allotment confirmations echo a debit already captured from the bank
+        // SMS; "purchase request ... processed" would otherwise trip the debit check below.
+        if (INVESTMENT_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (investment confirmation): ${smsBody.take(80)}")
             return null
         }
 
@@ -100,23 +122,33 @@ object SmsParser {
             return null
         }
 
-        val merchant = extractMerchant(smsBody)
-        val categoryId = categorize(merchant, smsBody, rules, categories)
+        val extractedMerchant = extractMerchant(smsBody)
+        val result = categorize(extractedMerchant, smsBody, rules, categories)
+        // A rule's label (when set) is a meaningful name for the txn; it wins over the
+        // auto-extracted merchant, which is often "Unknown" for NACH/forex SMS.
+        val merchant = result.label?.takeIf { it.isNotBlank() } ?: extractedMerchant
 
-        Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=$categoryId")
-        return TransactionDetails(amount, merchant, categoryId)
+        Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=${result.categoryId}")
+        return TransactionDetails(amount, merchant, result.categoryId)
     }
 
     /**
-     * Re-evaluate which category an already-saved SMS belongs to, using the current rules.
-     * Used to retro-apply rules to transactions that were imported before the rule existed.
-     * Returns the resolved categoryId (0L only if no categories exist at all).
+     * Re-evaluate an already-saved SMS against the current rules. Used to retro-apply rules to
+     * transactions imported before a rule existed. Returns both the resolved category and the
+     * matched rule's label (so the caller can refresh the display name too).
      */
+    fun categorizationFor(
+        smsBody: String,
+        rules: List<CategoryRule>,
+        categories: List<Category>
+    ): Categorization = categorize(extractMerchant(smsBody), smsBody, rules, categories)
+
+    /** Convenience accessor kept for callers that only need the category id. */
     fun categorizeFor(
         smsBody: String,
         rules: List<CategoryRule>,
         categories: List<Category>
-    ): Long = categorize(extractMerchant(smsBody), smsBody, rules, categories)
+    ): Long = categorizationFor(smsBody, rules, categories).categoryId
 
     private fun extractMerchant(smsBody: String): String {
         val patterns = listOf(
@@ -147,11 +179,17 @@ object SmsParser {
         smsBody: String,
         rules: List<CategoryRule>,
         categories: List<Category>
-    ): Long {
+    ): Categorization {
         val text = (merchant + " " + smsBody).lowercase()
 
-        rules.forEach { rule ->
-            if (text.contains(rule.keyword.lowercase())) return rule.categoryId
+        // A rule's keyword field may hold several comma-separated keywords; the rule matches only
+        // when EVERY keyword is present in the SMS (AND semantics). Evaluate the most specific
+        // rules first (most keywords) so e.g. "nach, groww invest" wins over a generic "nach".
+        rules.sortedByDescending { keywordsOf(it).size }.forEach { rule ->
+            val keywords = keywordsOf(rule)
+            if (keywords.isNotEmpty() && keywords.all { text.contains(it) }) {
+                return Categorization(rule.categoryId, rule.label)
+            }
         }
 
         val categoryName = when {
@@ -164,12 +202,24 @@ object SmsParser {
             else -> "Others"
         }
 
-        return categories.find { it.name.equals(categoryName, ignoreCase = true) }?.id
+        // Keyword fallback resolves only a category — no custom label.
+        val categoryId = categories.find { it.name.equals(categoryName, ignoreCase = true) }?.id
             ?: categories.find { it.name.equals("Others", ignoreCase = true) }?.id
             ?: 0L
+        return Categorization(categoryId, null)
     }
 
     private fun String.containsAny(vararg terms: String) = terms.any { this.contains(it) }
+
+    /** Splits a rule's (possibly comma-separated) keyword field into trimmed, lowercased terms. */
+    private fun keywordsOf(rule: CategoryRule): List<String> =
+        rule.keyword.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+
+    /** Result of categorization: the resolved category plus an optional rule-supplied display name. */
+    data class Categorization(
+        val categoryId: Long,
+        val label: String?
+    )
 
     data class TransactionDetails(
         val amount: Double,

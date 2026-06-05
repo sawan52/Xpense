@@ -154,8 +154,8 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
         DarkAddRuleDialog(
             categories = categories,
             onDismiss = { showAddRuleDialog = false },
-            onConfirm = { keyword, categoryId ->
-                viewModel.addRule(keyword, categoryId)
+            onConfirm = { keyword, categoryId, label ->
+                viewModel.addRule(keyword, categoryId, label)
                 showAddRuleDialog = false
             }
         )
@@ -234,7 +234,8 @@ fun DarkRuleItem(rule: CategoryRule, category: Category, onDelete: () -> Unit) {
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(rule.keyword, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(category.name, color = TextMuted, fontSize = 12.sp)
+            val subtitle = rule.label?.let { "${category.name} • $it" } ?: category.name
+            Text(subtitle, color = TextMuted, fontSize = 12.sp)
         }
         IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Default.Delete, null, tint = RedNegative.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
@@ -321,8 +322,9 @@ fun DarkCategoryItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfirm: (String, Long) -> Unit) {
+fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfirm: (String, Long, String?) -> Unit) {
     var keyword by remember { mutableStateOf("") }
+    var label by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf(categories.firstOrNull()?.id ?: 0L) }
     var expanded by remember { mutableStateOf(false) }
 
@@ -335,7 +337,22 @@ fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfi
                 OutlinedTextField(
                     value = keyword,
                     onValueChange = { keyword = it },
-                    label = { Text("Keyword (e.g. Starbucks)", color = TextSecondary) },
+                    label = { Text("Keywords (comma = all must match, e.g. nach, groww invest)", color = TextSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PurplePrimary,
+                        unfocusedBorderColor = DarkBorder,
+                        focusedContainerColor = DarkSurface,
+                        unfocusedContainerColor = DarkSurface,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    label = { Text("Display name (optional, e.g. MF SIP)", color = TextSecondary) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -382,7 +399,7 @@ fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfi
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(keyword, selectedCategoryId) },
+                onClick = { onConfirm(keyword, selectedCategoryId, label.ifBlank { null }) },
                 enabled = keyword.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
             ) { Text("Add Rule") }
