@@ -1,8 +1,20 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+// Signing secrets are read from local.properties (untracked) with an env-var fallback for CI,
+// instead of being hardcoded here. Returns null if absent, in which case a release build fails
+// at signing time while debug builds are unaffected.
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+fun secret(key: String): String? = keystoreProperties.getProperty(key) ?: System.getenv(key)
 
 android {
     namespace = "com.example.xpense"
@@ -24,16 +36,17 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../xpense-key.jks")
-            storePassword = "***REMOVED***"
-            keyAlias = "xpense-alias"
-            keyPassword = "***REMOVED***"
+            storeFile = file(secret("RELEASE_STORE_FILE") ?: "../xpense-key.jks")
+            storePassword = secret("RELEASE_STORE_PASSWORD")
+            keyAlias = secret("RELEASE_KEY_ALIAS")
+            keyPassword = secret("RELEASE_KEY_PASSWORD")
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
