@@ -87,7 +87,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            TabRow(
+            PrimaryTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = DarkBg,
                 contentColor = PurpleLight
@@ -421,7 +421,7 @@ fun DarkAddRuleDialog(
                         readOnly = true,
                         label = { Text("Category", color = TextSecondary) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = PurplePrimary,
