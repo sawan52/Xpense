@@ -78,7 +78,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                     .clip(CircleShape)
                     .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(PurplePrimary, PurpleLight)))
                     .clickable {
-                        if (selectedTab == 0) showAddRuleDialog = true else showAddCategoryDialog = true
+                        if (selectedTab == 0) showAddCategoryDialog = true else showAddRuleDialog = true
                     },
                 contentAlignment = Alignment.Center
             ) {
@@ -94,15 +94,15 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
             ) {
                 Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
                     selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
-                    Text("Auto-Rules", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                    Text("Categories", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
                 }
                 Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
                     selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
-                    Text("Categories", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
+                    Text("Auto-Rules", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
                 }
             }
 
-            if (selectedTab == 0) {
+            if (selectedTab == 1) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
