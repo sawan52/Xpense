@@ -299,7 +299,9 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     fun updateExpense(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long) {
         viewModelScope.launch {
-            expenseDao.updateExpense(Expense(id = id, amount = amount, merchant = merchant, categoryId = categoryId, date = date, rawSms = "Manual Update"))
+            // Update only the editable columns; rawSms + dedupKey must survive so resync still
+            // recognises an edited SMS row and skips it instead of inserting a duplicate.
+            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date)
         }
     }
 

@@ -47,7 +47,16 @@ class SyncManager(private val context: Context) {
                 
                 val transaction = SmsParser.parseTransaction(body, rules, categories)
                 if (transaction != null) {
-                    if (!expenseDao.doesSmsExist(body)) {
+                    // A row the user edited before the fix lost its SMS identity (rawSms became the
+                    // 'Manual Update' sentinel, dedupKey nulled), so plain dedup misses it and a
+                    // duplicate gets inserted. If this SMS matches such a row (same timestamp +
+                    // amount), re-adopt it instead: restore its key while keeping the user's edits,
+                    // and drop any duplicate an earlier resync already created.
+                    val edited = expenseDao.findEditedMatch(transaction.amount, date)
+                    if (edited != null) {
+                        expenseDao.deleteByDedupKey(body) // delete before adopt: avoids unique-index clash
+                        expenseDao.adoptSmsIdentity(edited.id, body)
+                    } else if (!expenseDao.doesSmsExist(body)) {
                         val expense = Expense(
                             amount = transaction.amount,
                             merchant = transaction.merchant,

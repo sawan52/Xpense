@@ -42,6 +42,24 @@ interface ExpenseDao {
     @Query("UPDATE expenses SET categoryId = :categoryId, merchant = :merchant WHERE id = :id")
     suspend fun updateExpenseCategoryAndMerchant(id: Long, categoryId: Long, merchant: String)
 
+    // Edit only the user-editable columns by id, leaving rawSms + dedupKey untouched. Building a
+    // fresh Expense here (the old approach) wiped both keys and made resync re-insert the row.
+    @Query("UPDATE expenses SET amount = :amount, merchant = :merchant, categoryId = :categoryId, date = :date WHERE id = :id")
+    suspend fun updateExpenseFields(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long)
+
+    // Repair support: find a previously-edited SMS row that lost its dedup identity (rawSms was
+    // overwritten with the 'Manual Update' sentinel and dedupKey nulled). Matched by the SMS's
+    // exact timestamp + amount so resync can re-adopt it instead of inserting a duplicate.
+    @Query("SELECT * FROM expenses WHERE dedupKey IS NULL AND rawSms = 'Manual Update' AND date = :date AND amount = :amount LIMIT 1")
+    suspend fun findEditedMatch(amount: Double, date: Long): Expense?
+
+    @Query("DELETE FROM expenses WHERE dedupKey = :dedupKey")
+    suspend fun deleteByDedupKey(dedupKey: String)
+
+    // Restore an edited row's SMS identity, preserving the user's edited merchant/categoryId.
+    @Query("UPDATE expenses SET rawSms = :body, dedupKey = :body WHERE id = :id")
+    suspend fun adoptSmsIdentity(id: Long, body: String)
+
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses()
 }
