@@ -12,17 +12,28 @@ object CategoryUtils {
 
     fun getCategoryIcon(category: Category): ImageVector = getIconByName(category.iconName)
 
-    fun getCategoryColor(category: Category): Color = getColorByName(category.name)
+    fun getCategoryColor(category: Category): Color {
+        // Built-in categories keep their familiar colours...
+        defaultColorByName(category.name)?.let { return it }
+        // ...every other category gets a distinct, stable colour from the palette by its id,
+        // so each pie-chart slice is clearly separable (instead of all sharing grey "Others").
+        if (category.id <= 0L) return CategoryOthersColor
+        return CategoryPalette[((category.id - 1) % CategoryPalette.size).toInt()]
+    }
 
-    fun getColorByName(name: String): Color = when (name.lowercase()) {
+    /** Colour for one of the built-in default categories, or null for any custom category. */
+    private fun defaultColorByName(name: String): Color? = when (name.lowercase()) {
         "food"          -> CategoryFoodColor
         "shopping"      -> CategoryShoppingColor
         "transport"     -> CategoryTravelColor
         "bills"         -> CategoryBillsColor
         "health"        -> CategoryHealthColor
         "entertainment" -> CategoryEntertainmentColor
-        else            -> CategoryOthersColor
+        "others"        -> CategoryOthersColor
+        else            -> null
     }
+
+    fun getColorByName(name: String): Color = defaultColorByName(name) ?: CategoryOthersColor
 
     fun getIconByName(name: String): ImageVector = when (name) {
         "Restaurant"       -> Icons.Default.Restaurant
