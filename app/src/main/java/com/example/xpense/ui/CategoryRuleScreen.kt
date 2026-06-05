@@ -496,7 +496,7 @@ fun DarkAddCategoryDialog(
                 Text("Pick an Icon", color = TextSecondary, fontSize = 13.sp)
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(48.dp),
-                    modifier = Modifier.height(140.dp)
+                    modifier = Modifier.height(220.dp)
                 ) {
                     items(CategoryUtils.availableIcons) { iconName ->
                         val isSel = selectedIcon == iconName
