@@ -27,6 +27,9 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE id IN (:ids)")
     suspend fun deleteExpenses(ids: List<Long>)
 
+    @Query("UPDATE expenses SET categoryId = :newId WHERE categoryId = :oldId")
+    suspend fun reassignCategory(oldId: Long, newId: Long)
+
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses()
 }

@@ -1,7 +1,9 @@
 package com.example.xpense.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -36,6 +38,8 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     var selectedTab          by remember { mutableIntStateOf(0) }
     var showAddRuleDialog    by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var editingCategory      by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory     by remember { mutableStateOf<Category?>(null) }
 
     Scaffold(
         containerColor = DarkBg,
@@ -102,7 +106,12 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(categories, key = { it.id }) { category ->
-                        DarkCategoryItem(category = category)
+                        DarkCategoryItem(
+                            category = category,
+                            canDelete = !category.name.equals("Others", ignoreCase = true),
+                            onEdit = { editingCategory = category },
+                            onDelete = { deletingCategory = category }
+                        )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -127,6 +136,46 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
             onConfirm = { name, icon ->
                 viewModel.addCategory(name, icon)
                 showAddCategoryDialog = false
+            }
+        )
+    }
+
+    editingCategory?.let { cat ->
+        DarkAddCategoryDialog(
+            initialName = cat.name,
+            initialIcon = cat.iconName,
+            title = "Edit Category",
+            confirmLabel = "Save",
+            onDismiss = { editingCategory = null },
+            onConfirm = { name, icon ->
+                viewModel.updateCategory(cat.id, name, icon)
+                editingCategory = null
+            }
+        )
+    }
+
+    deletingCategory?.let { cat ->
+        AlertDialog(
+            onDismissRequest = { deletingCategory = null },
+            containerColor = DarkCard,
+            title = { Text("Delete Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Delete \"${cat.name}\"? Its transactions and auto-rules will be moved to \"Others\".",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteCategory(cat)
+                        deletingCategory = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RedNegative)
+                ) { Text("Delete", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingCategory = null }) { Text("Cancel", color = TextSecondary) }
             }
         )
     }
@@ -162,27 +211,80 @@ fun DarkRuleItem(rule: CategoryRule, category: Category, onDelete: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun DarkCategoryItem(category: Category) {
+fun DarkCategoryItem(
+    category: Category,
+    canDelete: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val color = CategoryUtils.getCategoryColor(category)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .background(color.copy(alpha = 0.15f), CircleShape),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(DarkCard)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { menuExpanded = true }
+                )
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Text(
+                category.name,
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                Icons.Default.MoreVert,
+                "More options",
+                tint = TextMuted,
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable { menuExpanded = true }
+            )
         }
-        Text(category.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+            containerColor = DarkSurface
+        ) {
+            DropdownMenuItem(
+                text = { Text("Edit", color = TextPrimary) },
+                leadingIcon = { Icon(Icons.Default.Edit, null, tint = PurpleLight, modifier = Modifier.size(18.dp)) },
+                onClick = {
+                    menuExpanded = false
+                    onEdit()
+                }
+            )
+            if (canDelete) {
+                DropdownMenuItem(
+                    text = { Text("Delete", color = RedNegative) },
+                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = RedNegative, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -261,14 +363,21 @@ fun DarkAddRuleDialog(categories: List<Category>, onDismiss: () -> Unit, onConfi
 }
 
 @Composable
-fun DarkAddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var selectedIcon by remember { mutableStateOf("Category") }
+fun DarkAddCategoryDialog(
+    initialName: String = "",
+    initialIcon: String = "Category",
+    title: String = "Create Category",
+    confirmLabel: String = "Create",
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var selectedIcon by remember { mutableStateOf(initialIcon) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkCard,
-        title = { Text("Create Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
+        title = { Text(title, color = TextPrimary, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
@@ -317,7 +426,7 @@ fun DarkAddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> 
                 onClick = { onConfirm(name, selectedIcon) },
                 enabled = name.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-            ) { Text("Create") }
+            ) { Text(confirmLabel) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }

@@ -21,6 +21,9 @@ interface CategoryRuleDao {
     @Query("DELETE FROM category_rules WHERE id = :id")
     suspend fun deleteRule(id: Long)
 
+    @Query("UPDATE category_rules SET categoryId = :newId WHERE categoryId = :oldId")
+    suspend fun reassignRulesToCategory(oldId: Long, newId: Long)
+
     @Query("SELECT COUNT(*) FROM category_rules")
     suspend fun getRuleCount(): Int
 }

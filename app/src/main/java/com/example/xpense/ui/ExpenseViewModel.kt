@@ -82,6 +82,26 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun updateCategory(id: Long, name: String, iconName: String) {
+        viewModelScope.launch {
+            categoryDao.updateCategory(Category(id = id, name = name, iconName = iconName))
+        }
+    }
+
+    /**
+     * Deletes a category and moves its expenses and rules to "Others" so nothing is left
+     * orphaned. The "Others" fallback category itself cannot be deleted.
+     */
+    fun deleteCategory(category: Category) {
+        viewModelScope.launch {
+            val others = categoryDao.getCategoryByName("Others")
+            if (others == null || category.id == others.id) return@launch
+            expenseDao.reassignCategory(category.id, others.id)
+            ruleDao.reassignRulesToCategory(category.id, others.id)
+            categoryDao.deleteCategory(category)
+        }
+    }
+
     fun addRule(keyword: String, categoryId: Long) {
         viewModelScope.launch {
             ruleDao.insertRule(CategoryRule(keyword = keyword, categoryId = categoryId))
