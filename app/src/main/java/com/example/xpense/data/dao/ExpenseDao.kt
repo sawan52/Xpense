@@ -39,6 +39,12 @@ interface ExpenseDao {
     @Query("UPDATE expenses SET categoryId = :categoryId WHERE id = :id")
     suspend fun updateExpenseCategory(id: Long, categoryId: Long)
 
+    @Query("UPDATE expenses SET ignored = :ignored WHERE id = :id")
+    suspend fun setIgnored(id: Long, ignored: Boolean)
+
+    @Query("UPDATE expenses SET ignored = :ignored WHERE id IN (:ids)")
+    suspend fun setIgnoredForIds(ids: List<Long>, ignored: Boolean)
+
     @Query("UPDATE expenses SET categoryId = :categoryId, merchant = :merchant WHERE id = :id")
     suspend fun updateExpenseCategoryAndMerchant(id: Long, categoryId: Long, merchant: String)
 

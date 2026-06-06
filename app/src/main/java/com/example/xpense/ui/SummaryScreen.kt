@@ -33,7 +33,9 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
     val allExpenses    by viewModel.allExpenses.collectAsState()
     val lastSixMonths  by viewModel.lastSixMonthsTotals.collectAsState()
 
-    val totalAmount = allExpenses.sumOf { it.expense.amount }
+    // Ignored rows (self-transfers etc.) are excluded from balance/month totals.
+    val countedExpenses = allExpenses.filter { !it.expense.ignored }
+    val totalAmount = countedExpenses.sumOf { it.expense.amount }
 
     val greeting = remember {
         val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -46,10 +48,10 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
     val prevMonth = remember {
         Calendar.getInstance().also { it.add(Calendar.MONTH, -1) }.let { monthFmt.format(it.time) }
     }
-    val curTotal  = allExpenses.filter { monthFmt.format(Date(it.expense.date)) == curMonth }.sumOf { it.expense.amount }
-    val prevTotal = allExpenses.filter { monthFmt.format(Date(it.expense.date)) == prevMonth }.sumOf { it.expense.amount }
+    val curTotal  = countedExpenses.filter { monthFmt.format(Date(it.expense.date)) == curMonth }.sumOf { it.expense.amount }
+    val prevTotal = countedExpenses.filter { monthFmt.format(Date(it.expense.date)) == prevMonth }.sumOf { it.expense.amount }
     val pctChange = if (prevTotal > 0) ((curTotal - prevTotal) / prevTotal * 100).toInt() else 0
-    val recentFour = allExpenses.take(4)
+    val recentFour = countedExpenses.take(4)
 
     // Local UI-only toggle for masking the balance amount via the eye icon.
     var balanceHidden by remember { mutableStateOf(false) }

@@ -25,7 +25,9 @@ import com.example.xpense.ui.utils.CurrencyUtils
 @Composable
 fun ProfileScreen(viewModel: ExpenseViewModel) {
     val allExpenses by viewModel.allExpenses.collectAsState()
-    val totalAmount = allExpenses.sumOf { it.expense.amount }
+    // Stats reflect actual spending, so ignored rows (self-transfers etc.) are left out.
+    val countedExpenses = allExpenses.filter { !it.expense.ignored }
+    val totalAmount = countedExpenses.sumOf { it.expense.amount }
 
     Column(
         modifier = Modifier
@@ -72,7 +74,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                     Text("Personal Account", color = TextSecondary, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        StatChip("${allExpenses.size}", "Transactions")
+                        StatChip("${countedExpenses.size}", "Transactions")
                         StatChip("₹${CurrencyUtils.format(totalAmount, 0)}", "Total Spent")
                     }
                 }

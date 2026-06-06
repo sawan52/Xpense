@@ -207,13 +207,19 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     private val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
 
+    // Ignored rows (self-transfers etc.) are excluded from every total/sum.
     val monthlyTotals: StateFlow<Map<String, Double>> = allExpenses.map { expenses ->
-        expenses.groupBy { monthFormat.format(Date(it.expense.date)) }
+        expenses.filter { !it.expense.ignored }
+            .groupBy { monthFormat.format(Date(it.expense.date)) }
             .mapValues { (_, list) -> list.sumOf { it.expense.amount } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val availableMonths: StateFlow<List<String>> = monthlyTotals.map { 
-        it.keys.toList().sortedByDescending { month -> monthFormat.parse(month) }
+    // Month chips come from ALL rows (incl. ignored) so a month with only ignored transactions
+    // still appears and can be opened to un-ignore them.
+    val availableMonths: StateFlow<List<String>> = allExpenses.map { expenses ->
+        expenses.map { monthFormat.format(Date(it.expense.date)) }
+            .distinct()
+            .sortedByDescending { month -> monthFormat.parse(month) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val lastSixMonthsTotals: StateFlow<List<Pair<String, Double>>> = monthlyTotals.map { totals ->
@@ -235,14 +241,38 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         if (month == null) expenses else expenses.filter { monthFormat.format(Date(it.expense.date)) == month }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val totalForSelectedMonth: StateFlow<Double> = filteredExpenses.map { 
-        it.sumOf { exp -> exp.expense.amount } 
+    val totalForSelectedMonth: StateFlow<Double> = filteredExpenses.map {
+        it.filter { exp -> !exp.expense.ignored }.sumOf { exp -> exp.expense.amount }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // Sum of ignored transactions in the selected month — surfaced as the "₹X excluded" hint.
+    val ignoredTotalForSelectedMonth: StateFlow<Double> = filteredExpenses.map {
+        it.filter { exp -> exp.expense.ignored }.sumOf { exp -> exp.expense.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val categorySummaryForSelectedMonth: StateFlow<Map<Category, Double>> = filteredExpenses.map { expenses ->
-        expenses.groupBy { it.category }
+        expenses.filter { !it.expense.ignored }
+            .groupBy { it.category }
             .mapValues { (_, list) -> list.sumOf { it.expense.amount } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    // UI-only toggle to hide ignored rows from the transaction lists (totals are unaffected).
+    private val _hideIgnored = MutableStateFlow(false)
+    val hideIgnored: StateFlow<Boolean> = _hideIgnored.asStateFlow()
+
+    fun toggleHideIgnored() { _hideIgnored.value = !_hideIgnored.value }
+
+    fun setIgnored(id: Long, ignored: Boolean) {
+        viewModelScope.launch { expenseDao.setIgnored(id, ignored) }
+    }
+
+    /** Bulk ignore/un-ignore every currently selected transaction, then leave selection mode. */
+    fun setIgnoredForSelected(ignored: Boolean) {
+        viewModelScope.launch {
+            expenseDao.setIgnoredForIds(_selectedIds.value.toList(), ignored)
+            exitSelectionMode()
+        }
+    }
 
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen

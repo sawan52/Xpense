@@ -29,6 +29,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
     val selectedIds     by viewModel.selectedIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
     val categories      by viewModel.allCategories.collectAsState()
+    val hideIgnored     by viewModel.hideIgnored.collectAsState()
 
     var showEditSheet by remember { mutableStateOf(false) }
     var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
@@ -36,10 +37,15 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
 
     BackHandler(enabled = isSelectionMode) { viewModel.exitSelectionMode() }
 
+    val hasIgnored = remember(allExpenses) { allExpenses.any { it.expense.ignored } }
     val dayFmt  = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     val today   = remember { dayFmt.format(Date()) }
-    val grouped = remember(allExpenses) {
-        allExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
+    // "Hide ignored" drops ignored rows from the list; per-day totals always exclude them.
+    val visibleExpenses = remember(allExpenses, hideIgnored) {
+        if (hideIgnored) allExpenses.filter { !it.expense.ignored } else allExpenses
+    }
+    val grouped = remember(visibleExpenses) {
+        visibleExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
     }
 
     Column(
@@ -68,6 +74,16 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
+                    // Bulk ignore: if every selected row is already ignored, this un-ignores them.
+                    val allSelectedIgnored = selectedIds.isNotEmpty() &&
+                        selectedIds.all { id -> allExpenses.find { it.expense.id == id }?.expense?.ignored == true }
+                    IconButton(onClick = { viewModel.setIgnoredForSelected(!allSelectedIgnored) }) {
+                        Icon(
+                            if (allSelectedIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (allSelectedIgnored) "Un-ignore selected" else "Ignore selected",
+                            tint = PurpleLight
+                        )
+                    }
                     IconButton(onClick = { showDeleteConfirm = true }) {
                         Icon(Icons.Default.Delete, null, tint = RedNegative)
                     }
@@ -75,9 +91,13 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                         Icon(Icons.Default.Close, null, tint = TextSecondary)
                     }
                 }
-            } else {
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Search, null, tint = TextSecondary)
+            } else if (hasIgnored) {
+                IconButton(onClick = { viewModel.toggleHideIgnored() }) {
+                    Icon(
+                        if (hideIgnored) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = if (hideIgnored) "Show ignored" else "Hide ignored",
+                        tint = if (hideIgnored) PurpleLight else TextSecondary
+                    )
                 }
             }
         }
@@ -102,7 +122,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             today -> "Today"
                             else  -> date
                         }
-                        val dayTotal = items.sumOf { it.expense.amount }
+                        val dayTotal = items.filter { !it.expense.ignored }.sumOf { it.expense.amount }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -122,7 +142,8 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             isSelected = selectedIds.contains(item.expense.id),
                             isSelectionMode = isSelectionMode,
                             onToggle = { viewModel.toggleSelection(item.expense.id) },
-                            onLongClick = { viewModel.enterSelectionMode(item.expense.id) }
+                            onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
+                            onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) }
                         )
                     }
                 }

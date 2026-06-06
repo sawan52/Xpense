@@ -45,7 +45,7 @@ fun InsightsDetailScreen(viewModel: ExpenseViewModel) {
     val prevMonthStr = if (selectedIdx >= 0 && selectedIdx < availableMonths.size - 1)
         availableMonths[selectedIdx + 1] else null
     val prevTotal = allExpenses
-        .filter { monthFmt.format(Date(it.expense.date)) == prevMonthStr }
+        .filter { !it.expense.ignored && monthFmt.format(Date(it.expense.date)) == prevMonthStr }
         .sumOf { it.expense.amount }
     val pctChange = if (prevTotal > 0) ((totalAmount - prevTotal) / prevTotal * 100).toInt() else 0
     val topEntry = summary.maxByOrNull { it.value }

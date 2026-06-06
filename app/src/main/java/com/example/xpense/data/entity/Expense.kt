@@ -20,5 +20,8 @@ data class Expense(
     val rawSms: String,
     // SMS body for SMS-derived transactions (enforces no-duplicate at the DB level); null for
     // manual entries so they are never deduped.
-    val dedupKey: String? = null
+    val dedupKey: String? = null,
+    // User flag for "not really an expense" (e.g. a self-transfer). Ignored rows still appear in
+    // lists (rendered faded) but are excluded from every total/aggregate.
+    val ignored: Boolean = false
 )
