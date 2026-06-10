@@ -50,7 +50,6 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
     val selectedIds      by viewModel.selectedIds.collectAsState()
     val isSelectionMode  by viewModel.isSelectionMode.collectAsState()
     val categories       by viewModel.allCategories.collectAsState()
-    val hideIgnored      by viewModel.hideIgnored.collectAsState()
     val ignoredTotal     by viewModel.ignoredTotalForSelectedMonth.collectAsState()
 
     var showEditSheet by remember { mutableStateOf(false) }
@@ -60,9 +59,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
     var searchQuery by remember { mutableStateOf("") }
 
     // Search narrows only the month's transaction list (charts stay on the month total).
-    // The "Hide ignored" toggle drops ignored rows from the list only (totals are unaffected).
     val visibleExpenses = filteredExpenses
-        .filter { !hideIgnored || !it.expense.ignored }
         .filter {
             searchQuery.isBlank() ||
                 it.expense.merchant.contains(searchQuery, ignoreCase = true) ||
@@ -117,13 +114,11 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    // Bulk ignore: if every selected row is already ignored, this un-ignores them.
-                    val allSelectedIgnored = selectedIds.isNotEmpty() &&
-                        selectedIds.all { id -> allExpenses.find { it.expense.id == id }?.expense?.ignored == true }
-                    IconButton(onClick = { viewModel.setIgnoredForSelected(!allSelectedIgnored) }) {
+                    // Bulk ignore: rows here are never ignored (those live on the Ignored screen).
+                    IconButton(onClick = { viewModel.setIgnoredForSelected(true) }) {
                         Icon(
-                            if (allSelectedIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (allSelectedIgnored) "Un-ignore selected" else "Ignore selected",
+                            Icons.Default.VisibilityOff,
+                            contentDescription = "Ignore selected",
                             tint = PurpleLight
                         )
                     }
@@ -297,35 +292,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
 
             // ── Transaction list ──────────────────────────────────────────
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    if (ignoredTotal > 0 || hideIgnored) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .clickable { viewModel.toggleHideIgnored() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                if (hideIgnored) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                null,
-                                tint = if (hideIgnored) PurpleLight else TextMuted,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                if (hideIgnored) "Show ignored" else "Hide ignored",
-                                color = if (hideIgnored) PurpleLight else TextMuted,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
+                Text("Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             items(visibleExpenses, key = { it.expense.id }) { item ->
                 DarkTransactionCard(
@@ -506,8 +473,6 @@ fun DarkTransactionCard(
     onToggleIgnored: () -> Unit = {}
 ) {
     val ignored = item.expense.ignored
-    // Ignored rows are dimmed so it's obvious at a glance they don't count toward totals.
-    val fade = if (ignored) 0.4f else 1f
     val color = CategoryUtils.getCategoryColor(item.category)
     Box(
         modifier = Modifier
@@ -527,22 +492,22 @@ fun DarkTransactionCard(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(color.copy(alpha = 0.15f * fade), CircleShape),
+                    .background(color.copy(alpha = 0.15f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(CategoryUtils.getCategoryIcon(item.category), null, tint = color.copy(alpha = fade), modifier = Modifier.size(20.dp))
+                Icon(CategoryUtils.getCategoryIcon(item.category), null, tint = color, modifier = Modifier.size(20.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.expense.merchant, color = TextPrimary.copy(alpha = fade), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(item.expense.merchant, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (ignored) "Ignored • ${item.category.name}" else "${item.category.name} • ${formatHomeDate(item.expense.date)}",
-                    color = TextMuted.copy(alpha = fade), fontSize = 12.sp
+                    "${item.category.name} • ${formatHomeDate(item.expense.date)}",
+                    color = TextMuted, fontSize = 12.sp
                 )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
-                    color = RedNegative.copy(alpha = fade), fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
                 if (item.expense.rawSms != "Manual Entry" && item.expense.rawSms != "Manual Update") {
                     Box(

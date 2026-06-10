@@ -115,6 +115,14 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
             )
             HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileMenuItem(
+                icon = Icons.Default.VisibilityOff,
+                iconColor = CategoryHealthColor,
+                title = "Ignored Transactions",
+                subtitle = "View & restore ignored transactions",
+                onClick = { viewModel.navigateTo(Screen.IGNORED) }
+            )
+            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileMenuItem(
                 icon = Icons.Default.Notifications,
                 iconColor = CategoryEntertainmentColor,
                 title = "Notifications",

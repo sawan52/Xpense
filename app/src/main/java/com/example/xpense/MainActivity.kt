@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                                 Screen.HISTORY        -> HistoryScreen(viewModel)
                                 Screen.PROFILE        -> ProfileScreen(viewModel)
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
+                                Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
                             }
                         }
                         // Sync dialogs hoisted here so they appear over any screen that triggers a sync.

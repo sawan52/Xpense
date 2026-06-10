@@ -25,11 +25,11 @@ import java.util.*
 
 @Composable
 fun HistoryScreen(viewModel: ExpenseViewModel) {
-    val allExpenses     by viewModel.allExpenses.collectAsState()
+    // Ignored rows never appear here — they live on the Ignored Transactions screen.
+    val allExpenses     by viewModel.activeExpenses.collectAsState()
     val selectedIds     by viewModel.selectedIds.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
     val categories      by viewModel.allCategories.collectAsState()
-    val hideIgnored     by viewModel.hideIgnored.collectAsState()
 
     var showEditSheet by remember { mutableStateOf(false) }
     var expenseToEdit by remember { mutableStateOf<Expense?>(null) }
@@ -37,15 +37,10 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
 
     BackHandler(enabled = isSelectionMode) { viewModel.exitSelectionMode() }
 
-    val hasIgnored = remember(allExpenses) { allExpenses.any { it.expense.ignored } }
     val dayFmt  = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     val today   = remember { dayFmt.format(Date()) }
-    // "Hide ignored" drops ignored rows from the list; per-day totals always exclude them.
-    val visibleExpenses = remember(allExpenses, hideIgnored) {
-        if (hideIgnored) allExpenses.filter { !it.expense.ignored } else allExpenses
-    }
-    val grouped = remember(visibleExpenses) {
-        visibleExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
+    val grouped = remember(allExpenses) {
+        allExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
     }
 
     Column(
@@ -74,13 +69,11 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    // Bulk ignore: if every selected row is already ignored, this un-ignores them.
-                    val allSelectedIgnored = selectedIds.isNotEmpty() &&
-                        selectedIds.all { id -> allExpenses.find { it.expense.id == id }?.expense?.ignored == true }
-                    IconButton(onClick = { viewModel.setIgnoredForSelected(!allSelectedIgnored) }) {
+                    // Bulk ignore: rows here are never ignored (those live on the Ignored screen).
+                    IconButton(onClick = { viewModel.setIgnoredForSelected(true) }) {
                         Icon(
-                            if (allSelectedIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (allSelectedIgnored) "Un-ignore selected" else "Ignore selected",
+                            Icons.Default.VisibilityOff,
+                            contentDescription = "Ignore selected",
                             tint = PurpleLight
                         )
                     }
@@ -90,14 +83,6 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                     IconButton(onClick = { viewModel.exitSelectionMode() }) {
                         Icon(Icons.Default.Close, null, tint = TextSecondary)
                     }
-                }
-            } else if (hasIgnored) {
-                IconButton(onClick = { viewModel.toggleHideIgnored() }) {
-                    Icon(
-                        if (hideIgnored) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (hideIgnored) "Show ignored" else "Hide ignored",
-                        tint = if (hideIgnored) PurpleLight else TextSecondary
-                    )
                 }
             }
         }
@@ -122,7 +107,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             today -> "Today"
                             else  -> date
                         }
-                        val dayTotal = items.filter { !it.expense.ignored }.sumOf { it.expense.amount }
+                        val dayTotal = items.sumOf { it.expense.amount }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
