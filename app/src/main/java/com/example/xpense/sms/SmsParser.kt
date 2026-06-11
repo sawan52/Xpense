@@ -182,14 +182,20 @@ object SmsParser {
     ): Categorization {
         val text = (merchant + " " + smsBody).lowercase()
 
-        // A rule's keyword field may hold several comma-separated keywords; the rule matches only
-        // when EVERY keyword is present in the SMS (AND semantics). Evaluate the most specific
-        // rules first (most keywords) so e.g. "nach, groww invest" wins over a generic "nach".
-        rules.sortedByDescending { keywordsOf(it).size }.forEach { rule ->
-            val keywords = keywordsOf(rule)
-            if (keywords.isNotEmpty() && keywords.all { text.contains(it) }) {
-                return Categorization(rule.categoryId, rule.label)
-            }
+        // A rule's keyword field holds one or more '|'-separated alternatives, each a comma-
+        // separated AND-group: "nach, groww invest | nach, indian clearing" matches when ANY
+        // group has ALL its keywords in the SMS. Among matching rules the winner is the one
+        // whose MATCHED group has the most keywords — judged per group, not summed across
+        // alternatives, so a rule with many alternatives doesn't outrank a more specific match.
+        // Ties keep list order (earlier rule wins).
+        val best = rules.mapNotNull { rule ->
+            val matchedGroupSize = keywordGroupsOf(rule)
+                .filter { group -> group.all { text.contains(it) } }
+                .maxOfOrNull { it.size }
+            matchedGroupSize?.let { rule to it }
+        }.maxByOrNull { it.second }
+        if (best != null) {
+            return Categorization(best.first.categoryId, best.first.label)
         }
 
         val categoryName = when {
@@ -211,9 +217,15 @@ object SmsParser {
 
     private fun String.containsAny(vararg terms: String) = terms.any { this.contains(it) }
 
-    /** Splits a rule's (possibly comma-separated) keyword field into trimmed, lowercased terms. */
-    private fun keywordsOf(rule: CategoryRule): List<String> =
-        rule.keyword.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+    /**
+     * Splits a rule's keyword field into '|'-separated alternative groups, each a list of
+     * trimmed, lowercased comma-separated terms. Blank terms and empty groups are dropped,
+     * so stray separators ("a, b |") can't produce a match-everything group.
+     */
+    private fun keywordGroupsOf(rule: CategoryRule): List<List<String>> =
+        rule.keyword.split('|').map { group ->
+            group.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        }.filter { it.isNotEmpty() }
 
     /** Result of categorization: the resolved category plus an optional rule-supplied display name. */
     data class Categorization(

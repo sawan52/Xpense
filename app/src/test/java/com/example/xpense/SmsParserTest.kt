@@ -286,6 +286,70 @@ class SmsParserTest {
     }
 
     @Test
+    fun testOrRuleMatchesBothAlternatives() {
+        // ONE rule with '|' alternatives covers both NACH variants → same category + label.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "nach, groww invest | nach, indian clearing", categoryId = 7L, label = "MF SIP")
+        )
+        val groww = "BOI - Rs 4000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - GROWW INVEST TEC ON 03-06-2026. Avl Bal 32902.85"
+        val clearing = "BOI - Rs 6000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - Indian Clearing ON 03-06-2026. Avl Bal 36902.85"
+
+        listOf(groww, clearing).forEach { sms ->
+            val txn = SmsParser.parseTransaction(sms, rules, cats)
+            assertNotNull(txn)
+            assertEquals(7L, txn?.categoryId)
+            assertEquals("MF SIP", txn?.merchant)
+        }
+    }
+
+    @Test
+    fun testOrRuleDoesNotMatchUnrelatedMessage() {
+        // Neither alternative fully matches a generic NACH debit → falls through to Others.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "nach, groww invest | nach, indian clearing", categoryId = 7L, label = "MF SIP")
+        )
+        val sms = "BOI - Rs 1200.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - LIC PREMIUM ON 03-06-2026."
+
+        val txn = SmsParser.parseTransaction(sms, rules, cats)
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)              // Others, not Investment
+        assertEquals(false, txn?.merchant == "MF SIP") // label not applied
+    }
+
+    @Test
+    fun testOrRuleSpecificityJudgedPerMatchedGroup() {
+        // Generic "nach" rule (Bills) vs OR-rule whose matched group has 2 keywords:
+        // the OR-rule wins where one of its groups matches; the generic rule wins otherwise.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "nach", categoryId = 4L),  // generic -> Bills
+            CategoryRule(id = 2, keyword = "nach, groww invest | nach, indian clearing", categoryId = 7L, label = "MF SIP")
+        )
+        val groww = "BOI - Rs 4000.00 Debited (NACH) - NACH DR INW - GROWW INVEST TEC"
+        val lic   = "BOI - Rs 1200.00 Debited (NACH) - NACH DR INW - LIC PREMIUM"
+
+        val growwTxn = SmsParser.parseTransaction(groww, rules, cats)
+        assertEquals(7L, growwTxn?.categoryId)          // specific group (2 kw) beats generic (1 kw)
+        assertEquals("MF SIP", growwTxn?.merchant)
+
+        val licTxn = SmsParser.parseTransaction(lic, rules, cats)
+        assertEquals(4L, licTxn?.categoryId)            // only the generic rule matches
+    }
+
+    @Test
+    fun testOrRuleIgnoresEmptyAlternatives() {
+        // A trailing '|' or empty group must not become a match-everything alternative.
+        val rules = listOf(CategoryRule(id = 1, keyword = "swiggy |", categoryId = 1L))
+        val unrelated = "Rs 1500.0 spent at Amazon on 10-Feb-24."
+
+        val txn = SmsParser.parseTransaction(unrelated, rules, testCategories)
+        assertNotNull(txn)
+        assertEquals(2L, txn?.categoryId) // falls through to keyword fallback (Shopping), not the rule
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

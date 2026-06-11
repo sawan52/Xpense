@@ -43,6 +43,15 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     var deletingCategory     by remember { mutableStateOf<Category?>(null) }
     var editingRule          by remember { mutableStateOf<CategoryRule?>(null) }
     var deletingRule         by remember { mutableStateOf<CategoryRule?>(null) }
+    var searchActive         by remember { mutableStateOf(false) }
+    var searchQuery          by remember { mutableStateOf("") }
+
+    // Search applies to the Auto-Rules tab: match keyword, label, or the mapped category name.
+    val visibleRules = if (searchQuery.isBlank()) rules else rules.filter { rule ->
+        rule.keyword.contains(searchQuery, ignoreCase = true) ||
+            rule.label?.contains(searchQuery, ignoreCase = true) == true ||
+            categories.find { it.id == rule.categoryId }?.name?.contains(searchQuery, ignoreCase = true) == true
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val reapplyResult by viewModel.reapplyResult.collectAsState()
@@ -65,6 +74,16 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+                    }
+                },
+                actions = {
+                    if (selectedTab == 1) {
+                        IconButton(onClick = {
+                            searchActive = !searchActive
+                            if (!searchActive) searchQuery = ""
+                        }) {
+                            Icon(Icons.Default.Search, "Search rules", tint = if (searchActive) PurpleLight else TextSecondary)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBg),
@@ -103,6 +122,36 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
             }
 
             if (selectedTab == 1) {
+                if (searchActive) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search rules…", color = TextMuted, fontSize = 14.sp) },
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted, modifier = Modifier.size(20.dp)) },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                if (searchQuery.isBlank()) searchActive = false else searchQuery = ""
+                            }) {
+                                Icon(Icons.Default.Close, "Clear search", tint = TextMuted, modifier = Modifier.size(20.dp))
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = PurplePrimary,
+                            unfocusedBorderColor = DarkBorder,
+                            focusedContainerColor = DarkCard,
+                            unfocusedContainerColor = DarkCard,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = PurpleLight
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .padding(top = 12.dp)
+                    )
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -126,7 +175,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                             }
                         }
                     }
-                    items(rules, key = { it.id }) { rule ->
+                    items(visibleRules, key = { it.id }) { rule ->
                         val category = categories.find { it.id == rule.categoryId }
                             ?: Category(name = "Unknown", iconName = "Category")
                         DarkRuleItem(
@@ -135,6 +184,20 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                             onEdit = { editingRule = rule },
                             onDelete = { deletingRule = rule }
                         )
+                    }
+                    if (visibleRules.isEmpty() && searchQuery.isNotBlank()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(DarkCard)
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No rules match \"$searchQuery\"", color = TextMuted, fontSize = 14.sp)
+                            }
+                        }
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
@@ -387,7 +450,7 @@ fun DarkAddRuleDialog(
                 OutlinedTextField(
                     value = keyword,
                     onValueChange = { keyword = it },
-                    label = { Text("Keywords (comma = all must match, e.g. nach, groww invest)", color = TextSecondary) },
+                    label = { Text("Keywords (comma = all must match, | = alternatives)", color = TextSecondary) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
