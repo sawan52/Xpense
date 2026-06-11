@@ -3,6 +3,9 @@ package com.example.xpense.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Intent
+import com.example.xpense.data.backup.BackupManager
+import com.example.xpense.data.backup.RestoreMode
 import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
@@ -15,7 +18,15 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED
+    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED, BACKUP
+}
+
+/** UI status for the Backup & Restore screen. */
+sealed class BackupUiState {
+    object Idle : BackupUiState()
+    data class Working(val message: String) : BackupUiState()
+    data class Success(val message: String) : BackupUiState()
+    data class Error(val message: String) : BackupUiState()
 }
 
 class ExpenseViewModel(application: Application) : AndroidViewModel(application) {
@@ -24,6 +35,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val ruleDao = db.categoryRuleDao()
     private val categoryDao = db.categoryDao()
     private val syncManager = SyncManager(application)
+    private val backupManager = BackupManager(application)
 
     val allCategories = categoryDao.getAllCategories().stateIn(
         scope = viewModelScope,
@@ -364,6 +376,84 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             exitSelectionMode()
         }
     }
+
+    // ── Google Drive backup & restore ────────────────────────────────────────
+    private val _signedInEmail = MutableStateFlow<String?>(null)
+    val signedInEmail: StateFlow<String?> = _signedInEmail.asStateFlow()
+
+    private val _lastBackupTime = MutableStateFlow<Long?>(null)
+    val lastBackupTime: StateFlow<Long?> = _lastBackupTime.asStateFlow()
+
+    private val _backupState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
+    val backupState: StateFlow<BackupUiState> = _backupState.asStateFlow()
+
+    /** Account-picker intent for the screen's ActivityResult launcher. */
+    fun driveSignInIntent(): Intent = backupManager.signInIntent()
+
+    /** Re-read sign-in + last-backup state (call on entering the Backup screen). */
+    fun refreshBackupState() {
+        _signedInEmail.value = backupManager.signedInEmail()
+        if (_signedInEmail.value == null) {
+            _lastBackupTime.value = null
+        } else {
+            viewModelScope.launch {
+                _lastBackupTime.value = runCatching { backupManager.lastBackupTime() }.getOrNull()
+            }
+        }
+    }
+
+    fun onDriveSignInResult(data: Intent?) {
+        val result = backupManager.handleSignInResult(data)
+        _signedInEmail.value = result.email
+        if (result.email != null) {
+            _backupState.value = BackupUiState.Success("Connected as ${result.email}")
+            refreshBackupState()
+        } else {
+            _backupState.value = BackupUiState.Error(result.error ?: "Sign-in failed")
+        }
+    }
+
+    fun backupNow() {
+        viewModelScope.launch {
+            _backupState.value = BackupUiState.Working("Backing up…")
+            try {
+                backupManager.backup()
+                _lastBackupTime.value = runCatching { backupManager.lastBackupTime() }.getOrNull()
+                _backupState.value = BackupUiState.Success("Backup complete")
+            } catch (e: Exception) {
+                android.util.Log.w("XpenseBackup", "Backup failed", e)
+                _backupState.value = BackupUiState.Error(e.message ?: "Backup failed")
+            }
+        }
+    }
+
+    /** Restore from Drive. The reactive expense/category flows refresh the UI automatically. */
+    fun restoreBackup(mode: RestoreMode) {
+        viewModelScope.launch {
+            _backupState.value = BackupUiState.Working("Restoring…")
+            try {
+                backupManager.restore(mode)
+                _backupState.value = BackupUiState.Success(
+                    if (mode == RestoreMode.REPLACE) "Restore complete — data replaced"
+                    else "Restore complete — data merged"
+                )
+            } catch (e: Exception) {
+                android.util.Log.w("XpenseBackup", "Restore failed", e)
+                _backupState.value = BackupUiState.Error(e.message ?: "Restore failed")
+            }
+        }
+    }
+
+    fun signOutDrive() {
+        viewModelScope.launch {
+            backupManager.signOut()
+            _signedInEmail.value = null
+            _lastBackupTime.value = null
+            _backupState.value = BackupUiState.Idle
+        }
+    }
+
+    fun clearBackupState() { _backupState.value = BackupUiState.Idle }
 }
 
 data class ExpenseWithCategory(

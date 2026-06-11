@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 // Signing secrets are read from local.properties (untracked) with an env-var fallback for CI,
@@ -65,6 +66,18 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true // let unmocked android.util.Log calls no-op in JVM tests
     }
+    // The Google API client libraries bundle duplicate META-INF entries that otherwise fail the
+    // APK packaging step with "More than one file ... META-INF/...".
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/INDEX.LIST",
+                "META-INF/LICENSE.md",
+                "META-INF/NOTICE.md"
+            )
+        }
+    }
 }
 
 dependencies {
@@ -83,6 +96,15 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+
+    // JSON (backup serialization)
+    implementation(libs.kotlinx.serialization.json)
+
+    // Google Drive backup: sign-in + Drive REST client
+    implementation(libs.play.services.auth)
+    implementation(libs.google.api.client.android)
+    implementation(libs.google.api.services.drive)
+    implementation(libs.google.http.client.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

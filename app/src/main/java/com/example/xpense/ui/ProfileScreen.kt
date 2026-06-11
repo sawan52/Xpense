@@ -3,6 +3,8 @@ package com.example.xpense.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +35,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
+            .verticalScroll(rememberScrollState())
     ) {
         // ── Header ────────────────────────────────────────────────────────
         Text(
@@ -123,6 +126,14 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
             )
             HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileMenuItem(
+                icon = Icons.Default.CloudUpload,
+                iconColor = CategoryTravelColor,
+                title = "Backup & Restore",
+                subtitle = "Back up your data to Google Drive",
+                onClick = { viewModel.navigateTo(Screen.BACKUP) }
+            )
+            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileMenuItem(
                 icon = Icons.Default.Notifications,
                 iconColor = CategoryEntertainmentColor,
                 title = "Notifications",
@@ -156,6 +167,8 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 showArrow = false
             )
         }
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 

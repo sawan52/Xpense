@@ -20,3 +20,21 @@
 # rename/strip fields the generated Room code relies on. (Room ships most rules itself;
 # this is belt-and-suspenders for the entity model.)
 -keep class com.example.xpense.data.entity.** { *; }
+
+# ── Google Drive backup ──────────────────────────────────────────────────────
+# The Google API client + Drive model classes are populated by reflection on @Key
+# fields; without these keeps the JSON (de)serialization silently breaks in release.
+-keep class com.google.api.client.** { *; }
+-keep class com.google.api.services.drive.** { *; }
+-keepclassmembers class * { @com.google.api.client.util.Key <fields>; }
+-dontwarn com.google.api.client.**
+-dontwarn com.google.common.**
+-dontwarn org.apache.http.**
+-dontwarn javax.naming.**
+
+# kotlinx.serialization keeps the generated serializer for our backup model.
+-keepclassmembers class com.example.xpense.data.backup.** {
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep class com.example.xpense.data.backup.**$$serializer { *; }

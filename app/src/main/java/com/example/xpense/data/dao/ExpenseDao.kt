@@ -27,6 +27,11 @@ interface ExpenseDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertExpense(expense: Expense)
 
+    // Bulk insert for restore. IGNORE keeps the dedupKey unique index as the SMS de-dup backstop
+    // during a Merge restore (same-body rows already present are skipped).
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertExpenses(expenses: List<Expense>)
+
     @Update
     suspend fun updateExpense(expense: Expense)
 
