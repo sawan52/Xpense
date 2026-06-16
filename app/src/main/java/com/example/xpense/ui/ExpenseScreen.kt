@@ -514,15 +514,6 @@ fun DarkTransactionCard(
                     "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
                     color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
-                if (item.expense.rawSms != "Manual Entry" && item.expense.rawSms != "Manual Update") {
-                    Box(
-                        modifier = Modifier
-                            .background(DarkSurface, RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("UPI", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
             if (isSelectionMode) {
                 Checkbox(

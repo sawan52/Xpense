@@ -110,6 +110,27 @@ class SmsParserTest {
     }
 
     @Test
+    fun testMerchantTrimmedAtViaUpi() {
+        // UPI debits append a ref after "via UPI"; the saved name keeps up to and including
+        // "via UPI" and drops the trailing ref number.
+        val sms = "Rs.100.00 debited to John Doe via UPI Ref 502912345678"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals("John Doe via UPI", txn?.merchant)
+    }
+
+    @Test
+    fun testMerchantWithoutViaUpiUnchanged() {
+        // No "via UPI" marker => the extracted name is preserved as-is (capped at 25 chars).
+        val sms = "Rs.50.00 debited at Starbucks Coffee"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals("Starbucks Coffee", txn?.merchant)
+    }
+
+    @Test
     fun testCategorizeForRetroApply() {
         // categorizeFor is what the "Re-apply rules" action uses on already-saved SMS.
         val categoriesWithCustom = testCategories + Category(id = 6, name = "Groceries", iconName = "ShoppingCart")

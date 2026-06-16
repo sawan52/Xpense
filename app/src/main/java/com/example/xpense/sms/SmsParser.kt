@@ -8,6 +8,11 @@ import java.util.regex.Pattern
 object SmsParser {
     private const val TAG = "XpenseSmsParser"
 
+    // UPI debit SMS append a reference after "via UPI" (e.g. "to John Doe via UPI Ref 5029…").
+    // When this marker appears in the extracted name we keep everything up to and including it and
+    // drop the trailing ref, so the saved name reads "John Doe via UPI" instead of the noisy tail.
+    private const val VIA_UPI_MARKER = "via UPI"
+
     // Only reject definitive OTP/security messages — NOT "code" standalone (breaks UPI ref codes)
     private val SPAM_PATTERN = Pattern.compile(
         "(?i)\\b(OTP|one.time.password|verification code|login code|login otp|secret pin|entered wrong pin)\\b"
@@ -153,15 +158,22 @@ object SmsParser {
     private fun extractMerchant(smsBody: String): String {
         val patterns = listOf(
             // "at Swiggy", "to Zomato", "at VPA abc@upi"
-            Pattern.compile("(?i)(?:at|to|in\\*|for)\\s(?:VPA\\s)?([A-Za-z0-9][A-Za-z0-9\\s.\\-@]{2,24})"),
+            Pattern.compile("(?i)(?:at|to|in\\*|for)\\s(?:VPA\\s)?([A-Za-z0-9][A-Za-z0-9\\s.\\-@]{2,})"),
             // "spent on Swiggy"
-            Pattern.compile("(?i)spent\\s+on\\s+([A-Za-z0-9][A-Za-z0-9\\s.]{2,24})")
+            Pattern.compile("(?i)spent\\s+on\\s+([A-Za-z0-9][A-Za-z0-9\\s.]{2,})")
         )
         for (p in patterns) {
             val m = p.matcher(smsBody)
             if (m.find()) {
                 // Stop at a line break so a merchant on its own line doesn't swallow the next line.
-                val candidate = m.group(1)?.substringBefore("\n")?.trim()?.take(25) ?: continue
+                val raw = m.group(1)?.substringBefore("\n")?.trim() ?: continue
+                // Keep the name up to and including "via UPI"; otherwise fall back to a 25-char cap.
+                val viaIdx = raw.indexOf(VIA_UPI_MARKER, ignoreCase = true)
+                val candidate = if (viaIdx >= 0) {
+                    raw.substring(0, viaIdx + VIA_UPI_MARKER.length).trim()
+                } else {
+                    raw.take(25)
+                }
                 if (candidate.isEmpty()) continue
                 // Reject if it looks like a bank/account phrase
                 if (candidate.lowercase().contains("your") ||
