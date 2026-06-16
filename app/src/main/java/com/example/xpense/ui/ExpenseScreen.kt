@@ -114,11 +114,11 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    // Bulk ignore: rows here are never ignored (those live on the Ignored screen).
+                    // Bulk archive: rows here are never archived (those live on the Archived screen).
                     IconButton(onClick = { viewModel.setIgnoredForSelected(true) }) {
                         Icon(
-                            Icons.Default.VisibilityOff,
-                            contentDescription = "Ignore selected",
+                            Icons.Default.Archive,
+                            contentDescription = "Archive selected",
                             tint = PurpleLight
                         )
                     }
@@ -531,11 +531,11 @@ fun DarkTransactionCard(
                     colors = CheckboxDefaults.colors(checkedColor = PurplePrimary)
                 )
             } else {
-                // Eye toggle: tap to ignore/un-ignore this transaction.
+                // Archive toggle: tap to archive/unarchive this transaction.
                 IconButton(onClick = onToggleIgnored, modifier = Modifier.size(36.dp)) {
                     Icon(
-                        if (ignored) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (ignored) "Un-ignore transaction" else "Ignore transaction",
+                        if (ignored) Icons.Default.Unarchive else Icons.Default.Archive,
+                        contentDescription = if (ignored) "Unarchive transaction" else "Archive transaction",
                         tint = if (ignored) PurpleLight else TextMuted,
                         modifier = Modifier.size(20.dp)
                     )

@@ -118,10 +118,10 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
             )
             HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileMenuItem(
-                icon = Icons.Default.VisibilityOff,
+                icon = Icons.Default.Archive,
                 iconColor = CategoryHealthColor,
-                title = "Ignored Transactions",
-                subtitle = "View & restore ignored transactions",
+                title = "Archived Transactions",
+                subtitle = "View & restore archived transactions",
                 onClick = { viewModel.navigateTo(Screen.IGNORED) }
             )
             HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
@@ -162,7 +162,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Info,
                 iconColor = CategoryBillsColor,
                 title = "App Version",
-                subtitle = "1.5",
+                subtitle = "1.6",
                 onClick = {},
                 showArrow = false
             )

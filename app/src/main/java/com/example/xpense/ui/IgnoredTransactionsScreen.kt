@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +42,7 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
         containerColor = DarkBg,
         topBar = {
             TopAppBar(
-                title = { Text("Ignored Transactions", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                title = { Text("Archived Transactions", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
@@ -61,9 +61,9 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.VisibilityOff, null, tint = TextMuted, modifier = Modifier.size(48.dp))
-                    Text("No ignored transactions", color = TextMuted, fontSize = 16.sp)
-                    Text("Tap the eye icon on a transaction to ignore it", color = TextMuted, fontSize = 13.sp)
+                    Icon(Icons.Default.Archive, null, tint = TextMuted, modifier = Modifier.size(48.dp))
+                    Text("No archived transactions", color = TextMuted, fontSize = 16.sp)
+                    Text("Tap the archive icon on a transaction to archive it", color = TextMuted, fontSize = 13.sp)
                 }
             }
         } else {

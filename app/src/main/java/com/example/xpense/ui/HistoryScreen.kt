@@ -69,11 +69,11 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             showEditSheet = true
                         }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
                     }
-                    // Bulk ignore: rows here are never ignored (those live on the Ignored screen).
+                    // Bulk archive: rows here are never archived (those live on the Archived screen).
                     IconButton(onClick = { viewModel.setIgnoredForSelected(true) }) {
                         Icon(
-                            Icons.Default.VisibilityOff,
-                            contentDescription = "Ignore selected",
+                            Icons.Default.Archive,
+                            contentDescription = "Archive selected",
                             tint = PurpleLight
                         )
                     }
