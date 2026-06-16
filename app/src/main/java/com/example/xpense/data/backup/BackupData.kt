@@ -58,7 +58,8 @@ data class ExpenseDto(
     val categoryId: Long,
     val rawSms: String,
     val dedupKey: String? = null,
-    val ignored: Boolean = false
+    val ignored: Boolean = false,
+    val note: String? = null
 ) {
     fun toEntity() = Expense(
         id = id,
@@ -68,7 +69,8 @@ data class ExpenseDto(
         categoryId = categoryId,
         rawSms = rawSms,
         dedupKey = dedupKey,
-        ignored = ignored
+        ignored = ignored,
+        note = note
     )
     companion object {
         fun from(e: Expense) = ExpenseDto(
@@ -79,7 +81,8 @@ data class ExpenseDto(
             categoryId = e.categoryId,
             rawSms = e.rawSms,
             dedupKey = e.dedupKey,
-            ignored = e.ignored
+            ignored = e.ignored,
+            note = e.note
         )
     }
 }

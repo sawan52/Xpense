@@ -41,7 +41,7 @@ fun AddExpenseBottomSheet(
     expense: Expense? = null,
     categories: List<Category>,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, merchant: String, categoryId: Long, date: Long) -> Unit
+    onConfirm: (amount: Double, merchant: String, categoryId: Long, date: Long, note: String?) -> Unit
 ) {
     var amount by remember { mutableStateOf(expense?.amount?.takeIf { it > 0 }?.toString() ?: "") }
     var merchant by remember { mutableStateOf(expense?.merchant ?: "") }
@@ -49,7 +49,7 @@ fun AddExpenseBottomSheet(
         mutableStateOf(expense?.categoryId ?: categories.firstOrNull()?.id ?: 0L)
     }
     var dateMillis by remember { mutableStateOf(expense?.date ?: System.currentTimeMillis()) }
-    var note by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf(expense?.note ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
 
@@ -271,7 +271,7 @@ fun AddExpenseBottomSheet(
                         else Brush.linearGradient(listOf(DarkSurface, DarkSurface))
                     )
                     .clickable(enabled = isValid) {
-                        onConfirm(amount.toDouble(), merchant.trim(), selectedCategoryId, dateMillis)
+                        onConfirm(amount.toDouble(), merchant.trim(), selectedCategoryId, dateMillis, note.trim().ifBlank { null })
                     },
                 contentAlignment = Alignment.Center
             ) {

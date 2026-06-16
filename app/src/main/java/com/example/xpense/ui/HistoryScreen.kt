@@ -128,7 +128,11 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                             isSelectionMode = isSelectionMode,
                             onToggle = { viewModel.toggleSelection(item.expense.id) },
                             onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
-                            onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) }
+                            onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) },
+                            onClick = {
+                                expenseToEdit = item.expense
+                                showEditSheet = true
+                            }
                         )
                     }
                 }
@@ -145,8 +149,8 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             },
-            onConfirm = { amount, merchant, categoryId, date ->
-                expenseToEdit?.let { viewModel.updateExpense(it.id, amount, merchant, categoryId, date) }
+            onConfirm = { amount, merchant, categoryId, date, note ->
+                expenseToEdit?.let { viewModel.updateExpense(it.id, amount, merchant, categoryId, date, note) }
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             }

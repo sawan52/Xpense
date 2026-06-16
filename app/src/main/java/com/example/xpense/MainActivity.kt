@@ -139,8 +139,8 @@ class MainActivity : ComponentActivity() {
                     AddExpenseBottomSheet(
                         categories = categories,
                         onDismiss = { showAddSheet = false },
-                        onConfirm = { amount, merchant, categoryId, date ->
-                            viewModel.addExpense(amount, merchant, categoryId, date)
+                        onConfirm = { amount, merchant, categoryId, date, note ->
+                            viewModel.addExpense(amount, merchant, categoryId, date, note)
                             showAddSheet = false
                         }
                     )

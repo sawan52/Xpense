@@ -339,17 +339,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         _showSyncConfirm.value = false
     }
 
-    fun addExpense(amount: Double, merchant: String, categoryId: Long, date: Long) {
+    fun addExpense(amount: Double, merchant: String, categoryId: Long, date: Long, note: String? = null) {
         viewModelScope.launch {
-            expenseDao.insertExpense(Expense(amount = amount, merchant = merchant, categoryId = categoryId, date = date, rawSms = "Manual Entry"))
+            expenseDao.insertExpense(Expense(amount = amount, merchant = merchant, categoryId = categoryId, date = date, rawSms = "Manual Entry", note = note))
         }
     }
 
-    fun updateExpense(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long) {
+    fun updateExpense(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long, note: String? = null) {
         viewModelScope.launch {
             // Update only the editable columns; rawSms + dedupKey must survive so resync still
             // recognises an edited SMS row and skips it instead of inserting a duplicate.
-            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date)
+            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note)
         }
     }
 

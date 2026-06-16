@@ -301,7 +301,11 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                     isSelectionMode = isSelectionMode,
                     onToggle = { viewModel.toggleSelection(item.expense.id) },
                     onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
-                    onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) }
+                    onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) },
+                    onClick = {
+                        expenseToEdit = item.expense
+                        showEditSheet = true
+                    }
                 )
             }
             if (visibleExpenses.isEmpty()) {
@@ -334,8 +338,8 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             },
-            onConfirm = { amount, merchant, categoryId, date ->
-                expenseToEdit?.let { viewModel.updateExpense(it.id, amount, merchant, categoryId, date) }
+            onConfirm = { amount, merchant, categoryId, date, note ->
+                expenseToEdit?.let { viewModel.updateExpense(it.id, amount, merchant, categoryId, date, note) }
                 showEditSheet = false
                 viewModel.exitSelectionMode()
             }
@@ -470,7 +474,8 @@ fun DarkTransactionCard(
     isSelectionMode: Boolean,
     onToggle: () -> Unit,
     onLongClick: () -> Unit,
-    onToggleIgnored: () -> Unit = {}
+    onToggleIgnored: () -> Unit = {},
+    onClick: () -> Unit = {}
 ) {
     val ignored = item.expense.ignored
     val color = CategoryUtils.getCategoryColor(item.category)
@@ -480,7 +485,7 @@ fun DarkTransactionCard(
             .clip(RoundedCornerShape(16.dp))
             .background(if (isSelected) PurplePrimary.copy(alpha = 0.12f) else DarkCard)
             .combinedClickable(
-                onClick = { if (isSelectionMode) onToggle() },
+                onClick = { if (isSelectionMode) onToggle() else onClick() },
                 onLongClick = onLongClick
             )
             .padding(horizontal = 16.dp, vertical = 14.dp)

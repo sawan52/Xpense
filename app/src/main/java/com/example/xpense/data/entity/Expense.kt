@@ -23,5 +23,7 @@ data class Expense(
     val dedupKey: String? = null,
     // User flag for "not really an expense" (e.g. a self-transfer). Ignored rows still appear in
     // lists (rendered faded) but are excluded from every total/aggregate.
-    val ignored: Boolean = false
+    val ignored: Boolean = false,
+    // Optional free-text note the user attaches when editing/adding a transaction. Null = no note.
+    val note: String? = null
 )
