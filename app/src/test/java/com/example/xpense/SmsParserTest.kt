@@ -222,6 +222,21 @@ class SmsParserTest {
     }
 
     @Test
+    fun testFromRuleFlagDistinguishesRuleMatchFromFallback() {
+        // reapplyRules relies on fromRule: only a genuine rule match may re-categorize a row;
+        // the keyword fallback (fromRule = false) must never overwrite an existing category.
+        val rules = listOf(CategoryRule(id = 1, keyword = "amazon", categoryId = 2L, label = null))
+
+        // A matching rule => fromRule true.
+        val matched = SmsParser.categorizationFor("Rs 1500.0 spent at Amazon", rules, testCategories)
+        assertEquals(true, matched.fromRule)
+
+        // No rule matches "LIC premium" => keyword fallback resolves Others with fromRule false.
+        val fallback = SmsParser.categorizationFor("Rs 2000.0 debited for LIC premium", rules, testCategories)
+        assertEquals(false, fallback.fromRule)
+    }
+
+    @Test
     fun testMutualFundAllotmentConfirmationSkipped() {
         // AMC allotment confirmation — informational, the real debit is a separate bank SMS.
         // "purchase request" would otherwise trip the debit check.

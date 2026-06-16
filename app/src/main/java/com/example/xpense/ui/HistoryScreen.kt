@@ -63,12 +63,6 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
             )
             if (isSelectionMode) {
                 Row {
-                    if (selectedIds.size == 1) {
-                        IconButton(onClick = {
-                            expenseToEdit = allExpenses.find { it.expense.id == selectedIds.first() }?.expense
-                            showEditSheet = true
-                        }) { Icon(Icons.Default.Edit, null, tint = PurpleLight) }
-                    }
                     // Bulk archive: rows here are never archived (those live on the Archived screen).
                     IconButton(onClick = { viewModel.setIgnoredForSelected(true) }) {
                         Icon(

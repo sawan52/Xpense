@@ -168,7 +168,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         var changed = 0
         expenseDao.getAllExpensesList().forEach { exp ->
             if (exp.rawSms == "Manual Entry" || exp.rawSms == "Manual Update") return@forEach
+            // Respect a user's manual category choice and never auto-revert it.
+            if (exp.categoryLocked) return@forEach
             val result = SmsParser.categorizationFor(exp.rawSms, rules, categories)
+            // Only an actual user rule may re-categorize a row; the keyword fallback (which would
+            // demote unmatched rows to "Others") must not overwrite an existing category.
+            if (!result.fromRule) return@forEach
             val newCategoryId = if (result.categoryId != 0L) result.categoryId else exp.categoryId
             // A rule label refreshes the display name too; otherwise keep the existing merchant.
             val newMerchant = result.label?.takeIf { it.isNotBlank() } ?: exp.merchant
@@ -349,7 +354,11 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             // Update only the editable columns; rawSms + dedupKey must survive so resync still
             // recognises an edited SMS row and skips it instead of inserting a duplicate.
-            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note)
+            // Lock the category once the user changes it (and keep it locked thereafter) so rule
+            // re-application never reverts a manual choice.
+            val existing = expenseDao.getExpenseById(id)
+            val locked = existing?.categoryLocked == true || (existing != null && existing.categoryId != categoryId)
+            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note, locked)
         }
     }
 

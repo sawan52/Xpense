@@ -207,7 +207,7 @@ object SmsParser {
             matchedGroupSize?.let { rule to it }
         }.maxByOrNull { it.second }
         if (best != null) {
-            return Categorization(best.first.categoryId, best.first.label)
+            return Categorization(best.first.categoryId, best.first.label, fromRule = true)
         }
 
         val categoryName = when {
@@ -239,10 +239,15 @@ object SmsParser {
             group.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
         }.filter { it.isNotEmpty() }
 
-    /** Result of categorization: the resolved category plus an optional rule-supplied display name. */
+    /**
+     * Result of categorization: the resolved category, an optional rule-supplied display name, and
+     * whether an actual user rule matched (vs. the keyword fallback). `fromRule` lets re-apply
+     * change only genuine rule matches and leave everything else untouched.
+     */
     data class Categorization(
         val categoryId: Long,
-        val label: String?
+        val label: String?,
+        val fromRule: Boolean = false
     )
 
     data class TransactionDetails(

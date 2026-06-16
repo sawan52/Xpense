@@ -55,8 +55,11 @@ interface ExpenseDao {
 
     // Edit only the user-editable columns by id, leaving rawSms + dedupKey untouched. Building a
     // fresh Expense here (the old approach) wiped both keys and made resync re-insert the row.
-    @Query("UPDATE expenses SET amount = :amount, merchant = :merchant, categoryId = :categoryId, date = :date, note = :note WHERE id = :id")
-    suspend fun updateExpenseFields(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long, note: String?)
+    @Query("UPDATE expenses SET amount = :amount, merchant = :merchant, categoryId = :categoryId, date = :date, note = :note, categoryLocked = :categoryLocked WHERE id = :id")
+    suspend fun updateExpenseFields(id: Long, amount: Double, merchant: String, categoryId: Long, date: Long, note: String?, categoryLocked: Boolean)
+
+    @Query("SELECT * FROM expenses WHERE id = :id")
+    suspend fun getExpenseById(id: Long): Expense?
 
     // Repair support: find a previously-edited SMS row that lost its dedup identity (rawSms was
     // overwritten with the 'Manual Update' sentinel and dedupKey nulled). Matched by the SMS's

@@ -25,5 +25,8 @@ data class Expense(
     // lists (rendered faded) but are excluded from every total/aggregate.
     val ignored: Boolean = false,
     // Optional free-text note the user attaches when editing/adding a transaction. Null = no note.
-    val note: String? = null
+    val note: String? = null,
+    // Set when the user manually changes the category via the edit sheet. Rule re-application
+    // (reapplyRules) skips locked rows so a user's explicit category choice is never overwritten.
+    val categoryLocked: Boolean = false
 )
