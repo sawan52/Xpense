@@ -133,8 +133,13 @@ object SmsParser {
         // auto-extracted merchant, which is often "Unknown" for NACH/forex SMS.
         val merchant = result.label?.takeIf { it.isNotBlank() } ?: extractedMerchant
 
-        Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=${result.categoryId}")
-        return TransactionDetails(amount, merchant, result.categoryId)
+        // "Uncategorized" = no user rule matched AND the keyword fallback also produced Others.
+        // This is exactly when prompting the user to create a custom rule is worthwhile.
+        val othersId = categories.find { it.name.equals("Others", ignoreCase = true) }?.id
+        val uncategorized = !result.fromRule && result.categoryId == othersId
+
+        Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=${result.categoryId} uncategorized=$uncategorized")
+        return TransactionDetails(amount, merchant, result.categoryId, uncategorized)
     }
 
     /**
@@ -253,6 +258,8 @@ object SmsParser {
     data class TransactionDetails(
         val amount: Double,
         val merchant: String,
-        val categoryId: Long
+        val categoryId: Long,
+        // True when no rule and no keyword could place it — it fell through to "Others".
+        val uncategorized: Boolean = false
     )
 }

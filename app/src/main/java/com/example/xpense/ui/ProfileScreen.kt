@@ -27,6 +27,7 @@ import com.example.xpense.ui.utils.CurrencyUtils
 @Composable
 fun ProfileScreen(viewModel: ExpenseViewModel) {
     val allExpenses by viewModel.allExpenses.collectAsState()
+    val pendingNotificationCount by viewModel.pendingNotificationCount.collectAsState()
     // Stats reflect actual spending, so ignored rows (self-transfers etc.) are left out.
     val countedExpenses = allExpenses.filter { !it.expense.ignored }
     val totalAmount = countedExpenses.sumOf { it.expense.amount }
@@ -137,8 +138,9 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Notifications,
                 iconColor = CategoryEntertainmentColor,
                 title = "Notifications",
-                subtitle = "Manage app notifications",
-                onClick = {}
+                subtitle = "Alerts for uncategorized transactions",
+                badgeCount = pendingNotificationCount,
+                onClick = { viewModel.navigateTo(Screen.NOTIFICATIONS) }
             )
         }
 
@@ -162,7 +164,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Info,
                 iconColor = CategoryBillsColor,
                 title = "App Version",
-                subtitle = "1.8",
+                subtitle = "2.0",
                 onClick = {},
                 showArrow = false
             )
@@ -187,7 +189,8 @@ private fun ProfileMenuItem(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    showArrow: Boolean = true
+    showArrow: Boolean = true,
+    badgeCount: Int = 0
 ) {
     Row(
         modifier = Modifier
@@ -208,6 +211,21 @@ private fun ProfileMenuItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
+        }
+        if (badgeCount > 0) {
+            Box(
+                modifier = Modifier
+                    .background(PurplePrimary, CircleShape)
+                    .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (badgeCount > 99) "99+" else "$badgeCount",
+                    color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.width(4.dp))
         }
         if (showArrow) {
             Icon(

@@ -386,6 +386,39 @@ class SmsParserTest {
     }
 
     @Test
+    fun testUncategorizedFlagSetWhenFallsToOthers() {
+        // No rule and no keyword match => lands in Others => should flag for a "create rule" nudge.
+        val sms = "Rs.500.00 debited at SomeRandomVendor on 01-Jan-24"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)          // Others
+        assertEquals(true, txn?.uncategorized)
+    }
+
+    @Test
+    fun testUncategorizedFlagClearWhenRuleMatches() {
+        // A user rule placed it => not uncategorized, even if the rule maps to Others.
+        val rules = listOf(CategoryRule(id = 1, keyword = "somerandomvendor", categoryId = 5L))
+        val sms = "Rs.500.00 debited at SomeRandomVendor on 01-Jan-24"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(false, txn?.uncategorized)
+    }
+
+    @Test
+    fun testUncategorizedFlagClearWhenKeywordFallbackCategorizes() {
+        // The built-in keyword fallback put it in Food (not Others) => no nudge needed.
+        val sms = "Rs.500.00 debited from A/c **1234 to VPA Swiggy"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1L, txn?.categoryId)          // Food via keyword fallback
+        assertEquals(false, txn?.uncategorized)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

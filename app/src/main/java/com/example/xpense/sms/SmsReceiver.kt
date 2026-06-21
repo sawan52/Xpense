@@ -7,6 +7,8 @@ import android.provider.Telephony
 import android.util.Log
 import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
+import com.example.xpense.data.entity.NotificationItem
+import com.example.xpense.notifications.TransactionNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,7 +52,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val rules = db.categoryRuleDao().getAllRulesList()
                 val categories = db.categoryDao().getAllCategoriesList()
                 for ((body, timestamp) in messages) {
-                    processSms(db, rules, categories, body, timestamp)
+                    processSms(context, db, rules, categories, body, timestamp)
                 }
             } finally {
                 pendingResult.finish()
@@ -59,6 +61,7 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     private suspend fun processSms(
+        context: Context,
         db: AppDatabase,
         rules: List<com.example.xpense.data.entity.CategoryRule>,
         categories: List<com.example.xpense.data.entity.Category>,
@@ -79,8 +82,22 @@ class SmsReceiver : BroadcastReceiver() {
                 rawSms = body,
                 dedupKey = body
             )
-            db.expenseDao().insertExpense(expense)
-            Log.d(TAG, "Saved expense: ₹${transaction.amount} @ ${transaction.merchant}")
+            val newId = db.expenseDao().insertExpense(expense)
+            Log.d(TAG, "Saved expense: ₹${transaction.amount} @ ${transaction.merchant} (id=$newId)")
+            // Nudge the user to create a rule only when nothing could categorize it (→ Others).
+            // The in-app inbox row is ALWAYS recorded here (real-time SMS only — history sync never
+            // reaches this receiver); the pop-up is self-gated by the toggle inside notify().
+            if (transaction.uncategorized && newId > 0) {
+                db.notificationDao().insert(
+                    NotificationItem(
+                        expenseId = newId,
+                        merchant = transaction.merchant,
+                        amount = transaction.amount,
+                        date = timestamp
+                    )
+                )
+                TransactionNotifier.notify(context, transaction.merchant, transaction.amount)
+            }
         } else {
             Log.d(TAG, "No transaction parsed from SMS")
         }

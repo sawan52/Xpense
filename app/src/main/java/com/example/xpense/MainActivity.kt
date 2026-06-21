@@ -1,7 +1,9 @@
 package com.example.xpense
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,11 +34,28 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xpense.ui.*
 import com.example.xpense.ui.components.AddExpenseBottomSheet
 import com.example.xpense.ui.theme.*
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        // Carries the merchant from a notification tap so the UI can pre-fill the Add-Rule dialog.
+        const val EXTRA_RULE_KEYWORD = "rule_keyword"
+    }
+
+    // Intents arriving while the activity is alive (singleTop) come through onNewIntent, not a new
+    // onCreate; routing both through this flow lets the Compose tree react to a notification tap.
+    private val intentFlow = MutableStateFlow<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intentFlow.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        intentFlow.value = intent
         setContent {
             com.example.xpense.ui.theme.XpenseTheme {
                 val viewModel: ExpenseViewModel = viewModel()
@@ -66,6 +85,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Notification permission is requested separately and its result is intentionally
+                // ignored here — denial must never block the app, unlike SMS access above.
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { /* no-op: TransactionNotifier re-checks before posting */ }
+
+                LaunchedEffect(Unit) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !hasPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    ) {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+
+                // Route a notification tap into a pre-filled Add-Rule dialog.
+                val pendingRuleKeyword by viewModel.pendingRuleKeyword.collectAsState()
+                val latestIntent by intentFlow.collectAsState()
+                LaunchedEffect(latestIntent) {
+                    latestIntent?.getStringExtra(EXTRA_RULE_KEYWORD)?.let { keyword ->
+                        viewModel.requestRulePrefill(keyword)
+                        // Consume it so a config change / recomposition doesn't re-open the dialog.
+                        latestIntent?.removeExtra(EXTRA_RULE_KEYWORD)
+                    }
+                }
+
                 var showAddSheet by remember { mutableStateOf(false) }
 
                 Scaffold(
@@ -92,6 +136,7 @@ class MainActivity : ComponentActivity() {
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
                                 Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
                                 Screen.BACKUP         -> BackupScreen(viewModel)
+                                Screen.NOTIFICATIONS  -> NotificationsScreen(viewModel)
                             }
                         }
                         // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
@@ -142,8 +187,26 @@ class MainActivity : ComponentActivity() {
                         onConfirm = { amount, merchant, categoryId, date, note ->
                             viewModel.addExpense(amount, merchant, categoryId, date, note)
                             showAddSheet = false
-                        }
+                        },
+                        onAddCategory = { name, icon -> viewModel.addCategory(name, icon) }
                     )
+                }
+
+                // Opened from a "new uncategorized transaction" notification tap: reuse the same
+                // Add-Rule dialog as Settings, pre-filled with the merchant as the keyword.
+                pendingRuleKeyword?.let { keyword ->
+                    if (hasSmsPermission) {
+                        DarkAddRuleDialog(
+                            categories = categories,
+                            initialKeyword = keyword,
+                            title = "Create rule for \"$keyword\"",
+                            onDismiss = { viewModel.clearRulePrefill() },
+                            onConfirm = { kw, categoryId, label ->
+                                viewModel.addRule(kw, categoryId, label)
+                                viewModel.clearRulePrefill()
+                            }
+                        )
+                    }
                 }
             }
         }

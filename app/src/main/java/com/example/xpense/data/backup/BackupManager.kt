@@ -52,7 +52,7 @@ class BackupManager(private val context: Context) {
         private const val APP_DATA_FOLDER = "appDataFolder"
         // The DB schema version this build writes. Stored in the file so a future importer can
         // migrate older backups. Keep in sync with @Database(version = …) in AppDatabase.
-        private const val SCHEMA_VERSION = 8
+        private const val SCHEMA_VERSION = 9
         private val DRIVE_SCOPE = Scope(DriveScopes.DRIVE_APPDATA)
     }
 

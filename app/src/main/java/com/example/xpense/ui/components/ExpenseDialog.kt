@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.Expense
+import com.example.xpense.ui.DarkAddCategoryDialog
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
 import java.text.SimpleDateFormat
@@ -41,7 +42,12 @@ fun AddExpenseBottomSheet(
     expense: Expense? = null,
     categories: List<Category>,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, merchant: String, categoryId: Long, date: Long, note: String?) -> Unit
+    onConfirm: (amount: Double, merchant: String, categoryId: Long, date: Long, note: String?) -> Unit,
+    // When provided, a trailing "+" pill in the category row creates a category inline.
+    onAddCategory: ((name: String, icon: String) -> Unit)? = null,
+    // When true, a secondary "Add a rule for this" button appears (for SMS rows with no rule yet).
+    showAddRule: Boolean = false,
+    onAddRule: () -> Unit = {}
 ) {
     var amount by remember { mutableStateOf(expense?.amount?.takeIf { it > 0 }?.toString() ?: "") }
     var merchant by remember { mutableStateOf(expense?.merchant ?: "") }
@@ -52,6 +58,18 @@ fun AddExpenseBottomSheet(
     var note by remember { mutableStateOf(expense?.note ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var showAddCategory by remember { mutableStateOf(false) }
+    // Name of a just-created category to auto-select once it appears in the reactive list.
+    var pendingSelectName by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(categories) {
+        pendingSelectName?.let { nm ->
+            categories.find { it.name.equals(nm, ignoreCase = true) }?.let {
+                selectedCategoryId = it.id
+                pendingSelectName = null
+            }
+        }
+    }
 
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = dateMillis,
@@ -203,6 +221,30 @@ fun AddExpenseBottomSheet(
                             )
                         }
                     }
+                    if (onAddCategory != null) {
+                        item {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(DarkSurface, RoundedCornerShape(14.dp))
+                                    .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
+                                    .clickable { showAddCategory = true }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(PurplePrimary.copy(alpha = 0.2f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Add, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(Modifier.height(5.dp))
+                                Text("New", color = TextSecondary, fontSize = 11.sp)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -281,7 +323,36 @@ fun AddExpenseBottomSheet(
                     fontSize = 16.sp, fontWeight = FontWeight.Bold
                 )
             }
+
+            // Shortcut to create a rule for this merchant (shown only for SMS rows with no rule).
+            if (showAddRule) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, PurplePrimary, RoundedCornerShape(16.dp))
+                        .clickable { onAddRule() }
+                        .padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AddTask, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Add a rule for this", color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
+    }
+
+    if (showAddCategory && onAddCategory != null) {
+        DarkAddCategoryDialog(
+            onDismiss = { showAddCategory = false },
+            onConfirm = { name, icon ->
+                onAddCategory(name, icon)
+                pendingSelectName = name  // auto-select once the new category lands in the list
+                showAddCategory = false
+            }
+        )
     }
 
     if (showDatePicker) {

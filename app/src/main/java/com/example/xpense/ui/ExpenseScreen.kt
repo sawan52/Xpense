@@ -325,6 +325,9 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
     }
 
     if (showEditSheet && expenseToEdit != null) {
+        val editing = expenseToEdit!!
+        val showAddRule = editing.rawSms != "Manual Entry" && editing.rawSms != "Manual Update" &&
+            !viewModel.hasUserRuleFor(editing)
         AddExpenseBottomSheet(
             expense = expenseToEdit,
             categories = categories,
@@ -336,6 +339,13 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 expenseToEdit?.let { viewModel.updateExpense(it.id, amount, merchant, categoryId, date, note) }
                 showEditSheet = false
                 viewModel.exitSelectionMode()
+            },
+            onAddCategory = { name, icon -> viewModel.addCategory(name, icon) },
+            showAddRule = showAddRule,
+            onAddRule = {
+                showEditSheet = false
+                viewModel.exitSelectionMode()
+                viewModel.requestRulePrefill(editing.merchant)
             }
         )
     }

@@ -10,15 +10,18 @@ import com.example.xpense.data.database.AppDatabase
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
+import com.example.xpense.data.entity.NotificationItem
+import com.example.xpense.notifications.TransactionNotifier
 import com.example.xpense.sms.SmsParser
 import com.example.xpense.sms.SyncManager
+import android.content.Context
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED, BACKUP
+    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED, BACKUP, NOTIFICATIONS
 }
 
 /** UI status for the Backup & Restore screen. */
@@ -34,8 +37,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val expenseDao = db.expenseDao()
     private val ruleDao = db.categoryRuleDao()
     private val categoryDao = db.categoryDao()
+    private val notificationDao = db.notificationDao()
     private val syncManager = SyncManager(application)
     private val backupManager = BackupManager(application)
+    private val prefs = application.getSharedPreferences(
+        TransactionNotifier.PREFS_NAME, Context.MODE_PRIVATE
+    )
 
     val allCategories = categoryDao.getAllCategories().stateIn(
         scope = viewModelScope,
@@ -301,6 +308,64 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         _currentScreen.value = screen
     }
 
+    // ── New-transaction notifications ────────────────────────────────────────
+    private val _notificationsEnabled = MutableStateFlow(
+        prefs.getBoolean(TransactionNotifier.KEY_NOTIFICATIONS_ENABLED, true)
+    )
+    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(TransactionNotifier.KEY_NOTIFICATIONS_ENABLED, enabled).apply()
+        _notificationsEnabled.value = enabled
+    }
+
+    // A notification tap carries the merchant so the UI can open a pre-filled Add-Rule dialog.
+    private val _pendingRuleKeyword = MutableStateFlow<String?>(null)
+    val pendingRuleKeyword: StateFlow<String?> = _pendingRuleKeyword.asStateFlow()
+
+    fun requestRulePrefill(keyword: String) { _pendingRuleKeyword.value = keyword }
+    fun clearRulePrefill() { _pendingRuleKeyword.value = null }
+
+    /** Posts a sample notification so the user can verify the alert + tap-to-create-rule flow. */
+    fun sendTestNotification() {
+        TransactionNotifier.sendTest(getApplication())
+    }
+
+    // ── In-app Notifications inbox ───────────────────────────────────────────
+    // Durable record of uncategorized-transaction alerts. An item is shown only while its linked
+    // expense is still uncategorized (in Others, not locked); once a rule or a manual edit moves it
+    // out, it auto-clears. See `visibleNotifications`.
+    val pendingNotifications: StateFlow<List<NotificationItem>> = combine(
+        notificationDao.getAll(),
+        allExpenses,
+        allCategories
+    ) { items, expenses, categories ->
+        val othersId = categories.find { it.name.equals("Others", ignoreCase = true) }?.id
+        visibleNotifications(items, expenses.map { it.expense }, othersId)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val pendingNotificationCount: StateFlow<Int> = pendingNotifications
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun dismissNotification(id: Long) {
+        viewModelScope.launch { notificationDao.deleteById(id) }
+    }
+
+    fun clearAllNotifications() {
+        viewModelScope.launch { notificationDao.deleteAll() }
+    }
+
+    /**
+     * Whether an actual user rule currently matches this transaction. Drives the edit-sheet
+     * "Add a rule" button (shown only for SMS rows with no rule yet). Manual rows have no SMS to
+     * base a rule on, so they always return false.
+     */
+    fun hasUserRuleFor(expense: Expense): Boolean {
+        if (expense.rawSms == "Manual Entry" || expense.rawSms == "Manual Update") return false
+        return SmsParser.categorizationFor(expense.rawSms, allRules.value, allCategories.value).fromRule
+    }
+
     fun selectMonth(month: String) {
         _selectedMonth.value = month
     }
@@ -469,3 +534,21 @@ data class ExpenseWithCategory(
     val expense: Expense,
     val category: Category
 )
+
+/**
+ * Pure visibility filter for the Notifications inbox (no DB/IO so it is unit-testable): an item is
+ * shown only while its linked expense still exists, sits in "Others", and isn't categoryLocked.
+ * The moment a rule or a manual edit moves the expense out of Others, the item disappears.
+ */
+fun visibleNotifications(
+    items: List<NotificationItem>,
+    expenses: List<Expense>,
+    othersId: Long?
+): List<NotificationItem> {
+    if (othersId == null) return emptyList()
+    val byId = expenses.associateBy { it.id }
+    return items.filter { n ->
+        val e = byId[n.expenseId]
+        e != null && e.categoryId == othersId && !e.categoryLocked
+    }
+}

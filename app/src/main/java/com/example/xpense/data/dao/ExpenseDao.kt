@@ -23,9 +23,10 @@ interface ExpenseDao {
     suspend fun doesSmsExist(rawSms: String): Boolean
 
     // IGNORE so a racing duplicate SMS insert (same dedupKey) is dropped by the DB instead of
-    // throwing. Manual rows have dedupKey = null and never conflict.
+    // throwing. Manual rows have dedupKey = null and never conflict. Returns the new row id, or
+    // -1 when the insert was ignored as a duplicate.
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertExpense(expense: Expense)
+    suspend fun insertExpense(expense: Expense): Long
 
     // Bulk insert for restore. IGNORE keeps the dedupKey unique index as the SMS de-dup backstop
     // during a Merge restore (same-body rows already present are skipped).

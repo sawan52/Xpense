@@ -29,8 +29,8 @@ android {
         applicationId = "com.example.xpense"
         minSdk = 33
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.8"
+        versionCode = 11
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,6 +45,16 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Sign debug with the RELEASE key when its secrets are available, so a fast debug build
+            // (no R8/shrink/lint) can be installed *over* the release-signed app on the test device
+            // without a signature-mismatch uninstall. Falls back to the default debug keystore when
+            // secrets are absent (e.g. CI). The release SHA-1 is registered with Drive OAuth, so
+            // sign-in still works.
+            if (secret("RELEASE_STORE_PASSWORD") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

@@ -10,15 +10,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.xpense.data.dao.ExpenseDao
 import com.example.xpense.data.dao.CategoryRuleDao
 import com.example.xpense.data.dao.CategoryDao
+import com.example.xpense.data.dao.NotificationDao
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
+import com.example.xpense.data.entity.NotificationItem
 
-@Database(entities = [Expense::class, CategoryRule::class, Category::class], version = 8, exportSchema = false)
+@Database(entities = [Expense::class, CategoryRule::class, Category::class, NotificationItem::class], version = 9, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun categoryRuleDao(): CategoryRuleDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun notificationDao(): NotificationDao
 
     companion object {
         @Volatile
@@ -75,6 +78,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Adds the "notifications" table backing the in-app uncategorized-transaction inbox.
+        // New table only; no existing data is touched.
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS notifications (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "expenseId INTEGER NOT NULL, " +
+                        "merchant TEXT NOT NULL, " +
+                        "amount REAL NOT NULL, " +
+                        "date INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -82,7 +100,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
