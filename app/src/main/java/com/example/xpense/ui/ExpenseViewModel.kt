@@ -21,7 +21,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED, BACKUP, NOTIFICATIONS
+    HOME, INSIGHTS, INSIGHTS_DETAIL, HISTORY, PROFILE, CATEGORY_RULES, IGNORED, BACKUP, NOTIFICATIONS, HELP
 }
 
 /** UI status for the Backup & Restore screen. */

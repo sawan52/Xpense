@@ -4,6 +4,12 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.2] - 2026-06-23
+
+### Added
+- In-app **Help & Guide** (Profile → Help & Guide) — a collapsible, plain-language walkthrough of
+  every feature, each with a small illustration built from the app's own icons and styles.
+
 ## [2.1] - 2026-06-23
 
 ### Changed

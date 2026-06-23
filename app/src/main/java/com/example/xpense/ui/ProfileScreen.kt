@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -104,6 +105,14 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 .background(DarkCard)
         ) {
             ProfileMenuItem(
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                iconColor = PurplePrimary,
+                title = "Help & Guide",
+                subtitle = "Learn how every feature works",
+                onClick = { viewModel.navigateTo(Screen.HELP) }
+            )
+            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileMenuItem(
                 icon = Icons.Default.Category,
                 iconColor = CategoryShoppingColor,
                 title = "Category Rules",
@@ -165,7 +174,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Info,
                 iconColor = CategoryBillsColor,
                 title = "App Version",
-                subtitle = "2.1",
+                subtitle = "2.2",
                 onClick = {},
                 showArrow = false
             )

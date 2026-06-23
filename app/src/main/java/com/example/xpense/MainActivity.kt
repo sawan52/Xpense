@@ -137,6 +137,7 @@ class MainActivity : ComponentActivity() {
                                 Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
                                 Screen.BACKUP         -> BackupScreen(viewModel)
                                 Screen.NOTIFICATIONS  -> NotificationsScreen(viewModel)
+                                Screen.HELP           -> HelpScreen(viewModel)
                             }
                         }
                         // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
