@@ -14,6 +14,8 @@ All notable changes to Xpense are documented here. The format is based on
     button) now folds the new keyword into a matching existing rule instead of adding a duplicate.
   - A new **Merge duplicate rules** action in **Settings → Auto-Rules** collapses any
     duplicates you already have (shown only when there's something to merge).
+- The Profile header and Home greeting now show the signed-in Google account's name (and
+  avatar initial) instead of a hardcoded name, falling back to "User" when nobody is signed in.
 
 ## [2.0] - 2026-06-22
 
