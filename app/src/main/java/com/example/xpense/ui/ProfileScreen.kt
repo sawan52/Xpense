@@ -28,6 +28,7 @@ import com.example.xpense.ui.utils.CurrencyUtils
 fun ProfileScreen(viewModel: ExpenseViewModel) {
     val allExpenses by viewModel.allExpenses.collectAsState()
     val pendingNotificationCount by viewModel.pendingNotificationCount.collectAsState()
+    val userName by viewModel.userName.collectAsState()
     // Stats reflect actual spending, so ignored rows (self-transfers etc.) are left out.
     val countedExpenses = allExpenses.filter { !it.expense.ignored }
     val totalAmount = countedExpenses.sumOf { it.expense.amount }
@@ -71,10 +72,10 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("S", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(userName.firstOrNull()?.uppercase() ?: "U", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 }
                 Column {
-                    Text("Sawan", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(userName, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("Personal Account", color = TextSecondary, fontSize = 13.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {

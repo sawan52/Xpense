@@ -92,6 +92,9 @@ class BackupManager(private val context: Context) {
 
     fun signedInEmail(): String? = currentAccount()?.email
 
+    /** Display name of the signed-in Google account (full name, falling back to first name). */
+    fun signedInName(): String? = currentAccount()?.let { it.displayName ?: it.givenName }
+
     suspend fun signOut() {
         GoogleSignIn.getClient(context, signInOptions()).signOut()
     }

@@ -32,6 +32,7 @@ import java.util.*
 fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
     val allExpenses    by viewModel.allExpenses.collectAsState()
     val lastSixMonths  by viewModel.lastSixMonthsTotals.collectAsState()
+    val userName       by viewModel.userName.collectAsState()
 
     // Ignored rows (self-transfers etc.) are excluded from balance/month totals.
     val countedExpenses = allExpenses.filter { !it.expense.ignored }
@@ -76,7 +77,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 horizontalAlignment = Alignment.Start
             ) {
                 Text(greeting, color = TextSecondary, fontSize = 13.sp)
-                Text("Sawan 👋", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("${userName.substringBefore(' ')} 👋", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("You're doing great! Keep it up.", color = TextMuted, fontSize = 12.sp)
             }
             IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {

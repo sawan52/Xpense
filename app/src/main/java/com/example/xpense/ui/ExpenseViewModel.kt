@@ -479,6 +479,18 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val _signedInEmail = MutableStateFlow<String?>(null)
     val signedInEmail: StateFlow<String?> = _signedInEmail.asStateFlow()
 
+    // Display name for the Home greeting and Profile header; "User" when nobody is signed in.
+    // Seeded eagerly so it's correct before the first composition (and before init runs).
+    private val _userName = MutableStateFlow(currentUserName())
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
+    private fun currentUserName(): String =
+        backupManager.signedInName()?.takeIf { it.isNotBlank() } ?: "User"
+
+    private fun refreshUserName() {
+        _userName.value = currentUserName()
+    }
+
     private val _lastBackupTime = MutableStateFlow<Long?>(null)
     val lastBackupTime: StateFlow<Long?> = _lastBackupTime.asStateFlow()
 
@@ -491,6 +503,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     /** Re-read sign-in + last-backup state (call on entering the Backup screen). */
     fun refreshBackupState() {
         _signedInEmail.value = backupManager.signedInEmail()
+        refreshUserName()
         if (_signedInEmail.value == null) {
             _lastBackupTime.value = null
         } else {
@@ -548,6 +561,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             _signedInEmail.value = null
             _lastBackupTime.value = null
             _backupState.value = BackupUiState.Idle
+            refreshUserName()
         }
     }
 
