@@ -124,14 +124,19 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     fun addRule(keyword: String, categoryId: Long, label: String? = null) {
         viewModelScope.launch {
-            ruleDao.insertRule(
-                CategoryRule(
-                    keyword = keyword,
-                    categoryId = categoryId,
-                    label = label?.trim()?.takeIf { it.isNotBlank() }
-                )
-            )
-            // Apply the new rule to transactions that were already imported so the effect
+            val cleanLabel = label?.trim()?.takeIf { it.isNotBlank() }
+            // Fold into an existing rule with the same category + label instead of creating a
+            // duplicate row: the new keyword becomes another '|'-alternative on that rule.
+            val existing = ruleDao.getAllRulesList().firstOrNull {
+                it.categoryId == categoryId && normalizeRuleLabel(it.label) == normalizeRuleLabel(cleanLabel)
+            }
+            if (existing != null) {
+                val merged = mergeKeywordStrings(existing.keyword, keyword)
+                if (merged != existing.keyword) ruleDao.updateRule(existing.copy(keyword = merged))
+            } else {
+                ruleDao.insertRule(CategoryRule(keyword = keyword, categoryId = categoryId, label = cleanLabel))
+            }
+            // Apply the rule to transactions that were already imported so the effect
             // is visible immediately (otherwise only future SMS would be affected).
             reapplyRules()
         }
@@ -162,6 +167,25 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     val reapplyResult: StateFlow<Int?> = _reapplyResult.asStateFlow()
 
     fun clearReapplyResult() { _reapplyResult.value = null }
+
+    private val _mergeResult = MutableStateFlow<Int?>(null)
+    val mergeResult: StateFlow<Int?> = _mergeResult.asStateFlow()
+
+    fun clearMergeResult() { _mergeResult.value = null }
+
+    /**
+     * Collapses duplicate auto-rules (same category + label, differing only by keyword) into a
+     * single rule whose keyword joins every alternative with '|'. Surfaces how many rows were
+     * folded away for a snackbar. Matching is unchanged since each keyword stays its own group.
+     */
+    fun mergeDuplicateRules() {
+        viewModelScope.launch {
+            val consolidation = consolidateRules(ruleDao.getAllRulesList())
+            consolidation.updates.forEach { ruleDao.updateRule(it) }
+            consolidation.deleteIds.forEach { ruleDao.deleteRule(it) }
+            _mergeResult.value = consolidation.deleteIds.size
+        }
+    }
 
     /**
      * Re-runs the rule/keyword categorization over every SMS-derived transaction using the
@@ -551,4 +575,54 @@ fun visibleNotifications(
         val e = byId[n.expenseId]
         e != null && e.categoryId == othersId && !e.categoryLocked
     }
+}
+
+/** Normalized form of a rule label used for grouping: blank/null collapse to null. */
+fun normalizeRuleLabel(label: String?): String? =
+    label?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+
+/** Canonical form of one '|'-separated group, used only for de-dup comparison. */
+private fun normalizeKeywordGroup(group: String): String =
+    group.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.joinToString(",")
+
+/**
+ * Merges two rule keyword strings (each a set of '|'-separated alternative groups) into one,
+ * preserving the original display casing of [existing] and appending only those groups from
+ * [incoming] not already present (compared case-insensitively, so "Swiggy" won't be re-added
+ * next to "swiggy"). Blank groups are dropped.
+ */
+fun mergeKeywordStrings(existing: String, incoming: String): String {
+    val groups = existing.split('|').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+    val seen = groups.map { normalizeKeywordGroup(it) }.toMutableSet()
+    incoming.split('|').map { it.trim() }.filter { it.isNotEmpty() }.forEach { g ->
+        val norm = normalizeKeywordGroup(g)
+        if (norm.isNotEmpty() && seen.add(norm)) groups.add(g)
+    }
+    return groups.joinToString(" | ")
+}
+
+/** Survivors (with merged keyword) to update and the now-redundant rule ids to delete. */
+data class RuleConsolidation(
+    val updates: List<CategoryRule>,
+    val deleteIds: List<Long>
+)
+
+/**
+ * Groups rules by (categoryId, normalized label) and folds each duplicate group into a single
+ * survivor (the lowest-id, i.e. earliest-created, rule) whose keyword is the '|'-merge of every
+ * member's keywords. Pure (no DB) so it is unit-testable. A group of one yields nothing; a
+ * survivor whose keyword is unchanged after merging is omitted from [updates].
+ */
+fun consolidateRules(rules: List<CategoryRule>): RuleConsolidation {
+    val updates = mutableListOf<CategoryRule>()
+    val deleteIds = mutableListOf<Long>()
+    rules.groupBy { it.categoryId to normalizeRuleLabel(it.label) }.values.forEach { group ->
+        if (group.size <= 1) return@forEach
+        val sorted = group.sortedBy { it.id }
+        val survivor = sorted.first()
+        val mergedKeyword = sorted.drop(1).fold(survivor.keyword) { acc, r -> mergeKeywordStrings(acc, r.keyword) }
+        if (mergedKeyword != survivor.keyword) updates.add(survivor.copy(keyword = mergedKeyword))
+        sorted.drop(1).forEach { deleteIds.add(it.id) }
+    }
+    return RuleConsolidation(updates, deleteIds)
 }

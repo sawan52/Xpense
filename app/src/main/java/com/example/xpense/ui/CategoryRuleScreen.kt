@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,6 +54,10 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
             categories.find { it.id == rule.categoryId }?.name?.contains(searchQuery, ignoreCase = true) == true
     }
 
+    var showMergeConfirm by remember { mutableStateOf(false) }
+    // Rows that would be folded away by a merge — drives both the action row's visibility and count.
+    val duplicateCount = consolidateRules(rules).deleteIds.size
+
     val snackbarHostState = remember { SnackbarHostState() }
     val reapplyResult by viewModel.reapplyResult.collectAsState()
     LaunchedEffect(reapplyResult) {
@@ -62,6 +67,16 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 else "Recategorized $count transaction${if (count == 1) "" else "s"}"
             )
             viewModel.clearReapplyResult()
+        }
+    }
+    val mergeResult by viewModel.mergeResult.collectAsState()
+    LaunchedEffect(mergeResult) {
+        mergeResult?.let { count ->
+            snackbarHostState.showSnackbar(
+                if (count == 0) "No duplicate rules to merge"
+                else "Merged $count duplicate rule${if (count == 1) "" else "s"}"
+            )
+            viewModel.clearMergeResult()
         }
     }
 
@@ -175,6 +190,26 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                             }
                         }
                     }
+                    if (duplicateCount > 0) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(PurplePrimary.copy(alpha = 0.12f))
+                                    .clickable { showMergeConfirm = true }
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.MergeType, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Merge duplicate rules", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text("Combine rules with the same category & label", color = TextMuted, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                     items(visibleRules, key = { it.id }) { rule ->
                         val category = categories.find { it.id == rule.categoryId }
                             ?: Category(name = "Unknown", iconName = "Category")
@@ -257,6 +292,19 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 deletingRule = null
             },
             onDismiss = { deletingRule = null }
+        )
+    }
+
+    if (showMergeConfirm) {
+        ConfirmDialog(
+            title = "Merge duplicate rules",
+            message = "Rules sharing a category and display label will be combined into one (keywords joined with “|”). Existing transactions are unaffected.",
+            confirmLabel = "Merge",
+            onConfirm = {
+                viewModel.mergeDuplicateRules()
+                showMergeConfirm = false
+            },
+            onDismiss = { showMergeConfirm = false }
         )
     }
 
