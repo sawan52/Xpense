@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import android.content.Intent
+import com.example.xpense.data.backup.AutoBackupFrequency
+import com.example.xpense.data.backup.AutoBackupScheduler
 import com.example.xpense.data.backup.BackupManager
 import com.example.xpense.data.backup.RestoreMode
 import com.example.xpense.data.database.AppDatabase
@@ -502,6 +504,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val _backupState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
     val backupState: StateFlow<BackupUiState> = _backupState.asStateFlow()
 
+    // ── Automatic backup ──────────────────────────────────────────────────────
+    private val _autoBackupFrequency =
+        MutableStateFlow(AutoBackupScheduler.getFrequency(application))
+    val autoBackupFrequency: StateFlow<AutoBackupFrequency> = _autoBackupFrequency.asStateFlow()
+
+    /** Persist the chosen cadence and (re)schedule/cancel the background backup job. */
+    fun setAutoBackupFrequency(frequency: AutoBackupFrequency) {
+        AutoBackupScheduler.setFrequency(getApplication(), frequency)
+        _autoBackupFrequency.value = frequency
+    }
+
     /** Account-picker intent for the screen's ActivityResult launcher. */
     fun driveSignInIntent(): Intent = backupManager.signInIntent()
 
@@ -566,6 +579,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             _signedInEmail.value = null
             _lastBackupTime.value = null
             _backupState.value = BackupUiState.Idle
+            // Auto-backup can't run without a connected account; cancel its schedule too.
+            setAutoBackupFrequency(AutoBackupFrequency.OFF)
             refreshUserName()
         }
     }

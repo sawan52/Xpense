@@ -4,6 +4,13 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.3] - 2026-06-24
+
+### Added
+- Optional **automatic backup** to Google Drive (Backup & Restore). Choose **Daily**, **Weekly**,
+  or **Monthly** and it backs up on its own around 2:00 AM. Off by default; the screen says so until
+  you turn it on. Disconnecting Drive turns it back off.
+
 ## [2.2] - 2026-06-23
 
 ### Added

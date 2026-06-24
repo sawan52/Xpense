@@ -29,8 +29,8 @@ android {
         applicationId = "com.example.xpense"
         minSdk = 33
         targetSdk = 36
-        versionCode = 13
-        versionName = "2.2"
+        versionCode = 14
+        versionName = "2.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -109,6 +109,9 @@ dependencies {
 
     // JSON (backup serialization)
     implementation(libs.kotlinx.serialization.json)
+
+    // Background scheduling for automatic backups
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Google Drive backup: sign-in + Drive REST client
     implementation(libs.play.services.auth)
