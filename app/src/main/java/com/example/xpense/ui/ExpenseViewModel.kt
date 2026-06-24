@@ -44,15 +44,20 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         TransactionNotifier.PREFS_NAME, Context.MODE_PRIVATE
     )
 
+    // Started eagerly (not WhileSubscribed) because hasUserRuleFor() reads .value synchronously to
+    // decide whether to show the edit-sheet "Add a rule" button. The screens that call it (History,
+    // Insights) don't collect these flows, so a cold WhileSubscribed flow would hand back the empty
+    // initialValue and wrongly report "no rule" for already-ruled transactions. Both are tiny
+    // reference tables, so keeping them collected for the ViewModel's lifetime is negligible.
     val allCategories = categoryDao.getAllCategories().stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
 
     val allRules = ruleDao.getAllRules().stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Eagerly,
         initialValue = emptyList()
     )
 
