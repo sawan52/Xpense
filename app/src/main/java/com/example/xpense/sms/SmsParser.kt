@@ -70,6 +70,13 @@ object SmsParser {
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
     )
 
+    // Rejects bank/account *phrases* the at/to/for capture can grab ("transferred to your account",
+    // "paid to bank"). Word boundaries are deliberate: a UPI handle suffix like "merchant@hdfcbank"
+    // has no word boundary before "bank", so it is NOT rejected — only standalone words are.
+    private val BANK_PHRASE_PATTERN = Pattern.compile(
+        "(?i)\\b(your|account|bank)\\b"
+    )
+
     fun parseTransaction(
         smsBody: String,
         rules: List<CategoryRule> = emptyList(),
@@ -180,11 +187,8 @@ object SmsParser {
                     raw.take(25)
                 }
                 if (candidate.isEmpty()) continue
-                // Reject if it looks like a bank/account phrase
-                if (candidate.lowercase().contains("your") ||
-                    candidate.lowercase().contains("account") ||
-                    candidate.lowercase().contains("bank")
-                ) continue
+                // Reject if it looks like a bank/account phrase (but not a VPA bank-handle suffix).
+                if (BANK_PHRASE_PATTERN.matcher(candidate).find()) continue
                 return candidate
             }
         }
