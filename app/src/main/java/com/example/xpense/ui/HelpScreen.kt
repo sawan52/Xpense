@@ -410,6 +410,7 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     HelpTopic("Backup & restore", Icons.Default.CloudUpload, CategoryTravelColor) {
         Para("Keep your data safe and move it between phones using Google Drive (Profile → Backup & Restore).")
         Bullet("Connect your Google account, then tap Back up now. The last backup time is shown.")
+        Bullet("Automatic backup keeps a copy fresh without you remembering. It's off by default — turn it on and choose Daily, Weekly, or Monthly, and Xpense backs up on its own around 2:00 AM. Tap the frequency row to collapse the choices once you've set it. Disconnecting Drive turns it back off.")
         Bullet("Restore offers two modes — Merge adds the backup to your current data (skipping duplicates), while Replace wipes this device first and restores exactly. Replace can't be undone.")
         Bullet("Drive sign-in may be limited to Google accounts the app owner has approved.")
     }

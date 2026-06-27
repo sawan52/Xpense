@@ -509,6 +509,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         MutableStateFlow(AutoBackupScheduler.getFrequency(application))
     val autoBackupFrequency: StateFlow<AutoBackupFrequency> = _autoBackupFrequency.asStateFlow()
 
+    init {
+        // Re-anchor the schedule to the next 2 AM on every launch. Idempotent, and it migrates any
+        // pre-existing periodic schedule (which drifted off 2 AM) to the self-rescheduling job.
+        AutoBackupScheduler.reapply(application)
+    }
+
     /** Persist the chosen cadence and (re)schedule/cancel the background backup job. */
     fun setAutoBackupFrequency(frequency: AutoBackupFrequency) {
         AutoBackupScheduler.setFrequency(getApplication(), frequency)

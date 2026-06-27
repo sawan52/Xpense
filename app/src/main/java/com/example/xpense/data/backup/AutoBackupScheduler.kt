@@ -2,9 +2,9 @@ package com.example.xpense.data.backup
 
 import android.content.Context
 import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.xpense.notifications.TransactionNotifier
 import java.util.Calendar
@@ -15,8 +15,15 @@ enum class AutoBackupFrequency { OFF, DAILY, WEEKLY, MONTHLY }
 
 /**
  * Owns the auto-backup setting and its WorkManager schedule, so the ViewModel and the worker read
- * one source of truth. The cadence is persisted in the shared "xpense_prefs" file; the actual work
- * is a network-constrained periodic job that fires around 2 AM (see [delayToNext2am]).
+ * one source of truth. The cadence is persisted in the shared "xpense_prefs" file.
+ *
+ * Timing is implemented as a **self-rescheduling one-time job**, NOT a [androidx.work.PeriodicWorkRequest].
+ * A periodic request only honours an initial delay for its first run; every later run is scheduled one
+ * interval after the *previous actual* run, so once the OS defers the first 2 AM run (Doze + the
+ * periodic flex window) the whole schedule drifts away from 2 AM and never comes back. Instead, after
+ * each run [BackupWorker] calls [scheduleNext], which recomputes the next 2 AM — so every run
+ * re-anchors to ~2 AM. (Still approximate: Doze can push it a bit past 2 AM, but it can no longer
+ * drift cumulatively. Exact-to-the-minute would need exact-alarm permission, overkill for backups.)
  */
 object AutoBackupScheduler {
     const val KEY_AUTO_BACKUP_FREQ = "auto_backup_frequency"
@@ -38,13 +45,29 @@ object AutoBackupScheduler {
         apply(context, frequency)
     }
 
+    /**
+     * Re-establish the schedule from the persisted setting. Call on app start: it's idempotent
+     * (re-anchors to the next 2 AM) and migrates any older periodic schedule to the one-time job,
+     * since [enqueueUniqueWork]/[cancelUniqueWork] act on the unique name regardless of work type.
+     */
+    fun reapply(context: Context) = apply(context, getFrequency(context))
+
+    /** Chain the next run, re-anchored to the next 2 AM. Called by the worker after each run. */
+    fun scheduleNext(context: Context) {
+        val frequency = getFrequency(context)
+        if (frequency == AutoBackupFrequency.OFF) return
+        enqueue(context, frequency)
+    }
+
     private fun apply(context: Context, frequency: AutoBackupFrequency) {
-        val workManager = WorkManager.getInstance(context)
         if (frequency == AutoBackupFrequency.OFF) {
-            workManager.cancelUniqueWork(WORK_NAME)
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
             return
         }
+        enqueue(context, frequency)
+    }
 
+    private fun enqueue(context: Context, frequency: AutoBackupFrequency) {
         val intervalDays = when (frequency) {
             AutoBackupFrequency.DAILY -> 1L
             AutoBackupFrequency.WEEKLY -> 7L
@@ -56,18 +79,23 @@ object AutoBackupScheduler {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<BackupWorker>(intervalDays, TimeUnit.DAYS)
+        val request = OneTimeWorkRequestBuilder<BackupWorker>()
             .setConstraints(constraints)
-            .setInitialDelay(delayToNext2am(), TimeUnit.MILLISECONDS)
+            .setInitialDelay(delayUntilNextRun(intervalDays), TimeUnit.MILLISECONDS)
             .build()
 
-        // UPDATE so changing the cadence replaces the existing schedule rather than stacking jobs.
-        workManager.enqueueUniquePeriodicWork(
+        // REPLACE so re-anchoring / changing the cadence supersedes the pending job instead of
+        // stacking. A worker rescheduling itself here is fine — it's already finishing.
+        WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingWorkPolicy.REPLACE,
             request
         )
     }
+
+    /** Milliseconds until the next 2 AM that is [intervalDays] cadence away (today's/next 2 AM for daily). */
+    private fun delayUntilNextRun(intervalDays: Long): Long =
+        delayToNext2am() + TimeUnit.DAYS.toMillis(intervalDays - 1)
 
     /** Milliseconds from now until the next local 2 AM. */
     private fun delayToNext2am(): Long {

@@ -174,7 +174,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Info,
                 iconColor = CategoryBillsColor,
                 title = "App Version",
-                subtitle = "2.4",
+                subtitle = "2.5",
                 onClick = {},
                 showArrow = false
             )
