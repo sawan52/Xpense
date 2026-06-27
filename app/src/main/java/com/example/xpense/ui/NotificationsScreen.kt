@@ -1,6 +1,5 @@
 package com.example.xpense.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,8 +45,6 @@ fun NotificationsScreen(viewModel: ExpenseViewModel) {
     var menuExpanded by remember { mutableStateOf(false) }
     var showDisableConfirm by remember { mutableStateOf(false) }
 
-    BackHandler { viewModel.navigateTo(Screen.PROFILE) }
-
     val fmt = remember { SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()) }
 
     Scaffold(
@@ -56,7 +53,7 @@ fun NotificationsScreen(viewModel: ExpenseViewModel) {
             TopAppBar(
                 title = { Text("Notifications", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },

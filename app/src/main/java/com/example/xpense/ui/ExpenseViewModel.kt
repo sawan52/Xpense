@@ -230,8 +230,20 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private val _currentScreen = MutableStateFlow(Screen.HOME)
-    val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
+    // Navigation history. The last element is the visible screen; HOME is always the root. Back
+    // pops one entry, so the user retraces the exact path they took. Revisiting a screen already
+    // in history collapses back to it instead of stacking a duplicate (avoids unbounded growth and
+    // loops when hopping between bottom-bar tabs).
+    private val _backStack = MutableStateFlow(listOf(Screen.HOME))
+
+    val currentScreen: StateFlow<Screen> = _backStack
+        .map { it.last() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Screen.HOME)
+
+    /** True when there is somewhere to go back to (i.e. we're not at the HOME root). */
+    val canNavigateBack: StateFlow<Boolean> = _backStack
+        .map { it.size > 1 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _syncProgress = MutableStateFlow<Float?>(null)
     val syncProgress: StateFlow<Float?> = _syncProgress.asStateFlow()
@@ -336,7 +348,26 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun navigateTo(screen: Screen) {
-        _currentScreen.value = screen
+        val stack = _backStack.value
+        if (stack.last() == screen) return // already showing it
+        val existing = stack.indexOf(screen)
+        _backStack.value = if (existing >= 0) {
+            // Revisiting a screen already in history → unwind back to it (no duplicate, no loop).
+            stack.subList(0, existing + 1).toList()
+        } else {
+            stack + screen
+        }
+    }
+
+    /**
+     * Pop one screen off the history. Returns false when already at the HOME root, in which case
+     * the caller (Activity) should let the system handle back — i.e. leave the app.
+     */
+    fun navigateBack(): Boolean {
+        val stack = _backStack.value
+        if (stack.size <= 1) return false
+        _backStack.value = stack.dropLast(1)
+        return true
     }
 
     // ── New-transaction notifications ────────────────────────────────────────

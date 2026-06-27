@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -60,7 +61,14 @@ class MainActivity : ComponentActivity() {
             com.example.xpense.ui.theme.XpenseTheme {
                 val viewModel: ExpenseViewModel = viewModel()
                 val currentScreen by viewModel.currentScreen.collectAsState()
+                val canNavigateBack by viewModel.canNavigateBack.collectAsState()
                 val categories    by viewModel.allCategories.collectAsState()
+
+                // Global back: pop the navigation history one screen at a time so back retraces the
+                // path the user took. Disabled at the HOME root so the system default runs and the
+                // app exits. Screen-level handlers (e.g. selection mode) compose deeper and take
+                // priority over this one, so they still intercept back first when active.
+                BackHandler(enabled = canNavigateBack) { viewModel.navigateBack() }
 
                 val context = LocalContext.current
                 fun hasPermission(p: String) =

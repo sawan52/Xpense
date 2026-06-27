@@ -1,6 +1,5 @@
 package com.example.xpense.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,7 +44,6 @@ fun BackupScreen(viewModel: ExpenseViewModel) {
     // The Daily/Weekly/Monthly chooser is collapsible once auto-backup is on.
     var freqExpanded by remember { mutableStateOf(true) }
 
-    BackHandler { viewModel.navigateTo(Screen.PROFILE) }
     LaunchedEffect(Unit) { viewModel.refreshBackupState() }
 
     val signInLauncher = rememberLauncherForActivityResult(
@@ -71,7 +69,7 @@ fun BackupScreen(viewModel: ExpenseViewModel) {
             TopAppBar(
                 title = { Text("Backup & Restore", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },

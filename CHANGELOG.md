@@ -4,6 +4,18 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.7] - 2026-06-28
+
+### Changed
+- Back navigation now follows a proper history stack: the system back button (and each screen's
+  back arrow) **retraces the exact path you took** instead of jumping to a fixed parent. Back from
+  the Home tab exits the app, as expected. Selection mode and open sheets/dialogs still consume
+  back first.
+
+### Fixed
+- Category Rules (Profile → Category Rules) no longer exits the app on back — it now returns to
+  Profile like every other screen.
+
 ## [2.6] - 2026-06-28
 
 ### Added

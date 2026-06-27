@@ -87,7 +87,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
             TopAppBar(
                 title = { Text("Settings", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },

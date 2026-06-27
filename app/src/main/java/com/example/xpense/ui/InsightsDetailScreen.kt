@@ -1,6 +1,5 @@
 package com.example.xpense.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,8 +46,6 @@ fun InsightsDetailScreen(viewModel: ExpenseViewModel) {
     // Tapping a category row opens a popup listing just that category's transactions.
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
 
-    BackHandler { viewModel.navigateTo(Screen.INSIGHTS) }
-
     // Same derived insights as ExpenseScreen (prev-month change + top category).
     val monthFmt = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
     val selectedIdx = availableMonths.indexOf(selectedMonth)
@@ -73,7 +70,7 @@ fun InsightsDetailScreen(viewModel: ExpenseViewModel) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.INSIGHTS) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },

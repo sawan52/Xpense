@@ -1,6 +1,5 @@
 package com.example.xpense.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -37,8 +36,6 @@ import com.example.xpense.ui.theme.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HelpScreen(viewModel: ExpenseViewModel) {
-    BackHandler { viewModel.navigateTo(Screen.PROFILE) }
-
     // Accordion state: index of the currently open topic, or -1 for all collapsed.
     var openIndex by remember { mutableIntStateOf(0) }
 
@@ -50,7 +47,7 @@ fun HelpScreen(viewModel: ExpenseViewModel) {
             TopAppBar(
                 title = { Text("Help & Guide", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },

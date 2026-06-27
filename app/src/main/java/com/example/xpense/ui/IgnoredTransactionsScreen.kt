@@ -1,6 +1,5 @@
 package com.example.xpense.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,8 +28,6 @@ import java.util.*
 fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
     val ignoredExpenses by viewModel.ignoredExpenses.collectAsState()
 
-    BackHandler { viewModel.navigateTo(Screen.PROFILE) }
-
     val dayFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     val today  = remember { dayFmt.format(Date()) }
     val grouped = remember(ignoredExpenses) {
@@ -43,7 +40,7 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
             TopAppBar(
                 title = { Text("Archived Transactions", color = TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.PROFILE) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
                     }
                 },
