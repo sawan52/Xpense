@@ -4,6 +4,13 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.4] - 2026-06-27
+
+### Fixed
+- Auto-rule suggestions no longer show **"Unknown"** for UPI merchants whose handle ends in a bank
+  suffix (e.g. `DMART.27186418@hdfcbank`). The merchant name is now extracted correctly so the
+  suggested rule keyword matches the real merchant.
+
 ## [2.3] - 2026-06-24
 
 ### Added
