@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Canvas
@@ -490,16 +491,24 @@ fun DarkTransactionCard(
                 Icon(CategoryUtils.getCategoryIcon(item.category), null, tint = color, modifier = Modifier.size(20.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.expense.merchant, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                // Single-line + ellipsis so a long merchant never makes this card taller than others.
+                Text(
+                    item.expense.merchant,
+                    color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
                 Text(
                     "${item.category.name} • ${formatHomeDate(item.expense.date)}",
-                    color = TextMuted, fontSize = 12.sp
+                    color = TextMuted, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Never wrap the amount — it keeps its full width and the merchant ellipsizes instead.
                 Text(
                     "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
-                    color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, softWrap = false
                 )
             }
             if (isSelectionMode) {
