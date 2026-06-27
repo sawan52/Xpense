@@ -4,6 +4,20 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.6] - 2026-06-28
+
+### Added
+- Tap the **donut chart** on Insights to open the Spending Breakdown directly.
+- Tap any **category** in the breakdown to see just its transactions in a centered pop-up
+  (close it with the ✕).
+- **Swipe a transaction left** to archive it, and **swipe right** on the Archived screen to
+  restore it.
+
+### Changed
+- Removed the per-row **archive icon** from every transaction list — archiving is now a swipe
+  gesture (bulk archive in multi-select is unchanged).
+- Removed the **"View All"** link from the Spending Breakdown header.
+
 ## [2.5] - 2026-06-27
 
 ### Fixed

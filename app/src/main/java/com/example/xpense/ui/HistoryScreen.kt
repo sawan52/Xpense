@@ -104,6 +104,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                         val dayTotal = items.sumOf { it.expense.amount }
                         Row(
                             modifier = Modifier
+                                .animateItem()
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -116,18 +117,25 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                         }
                     }
                     items(items, key = { it.expense.id }) { item ->
-                        DarkTransactionCard(
-                            item = item,
-                            isSelected = selectedIds.contains(item.expense.id),
-                            isSelectionMode = isSelectionMode,
-                            onToggle = { viewModel.toggleSelection(item.expense.id) },
-                            onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
-                            onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) },
-                            onClick = {
-                                expenseToEdit = item.expense
-                                showEditSheet = true
-                            }
-                        )
+                        // Swipe left to archive; disabled during multi-select so the checkbox tap wins.
+                        // animateItem() slides the remaining rows up smoothly when this one leaves.
+                        SwipeToArchiveRow(
+                            enabled = !isSelectionMode,
+                            onArchive = { viewModel.setIgnored(item.expense.id, true) },
+                            modifier = Modifier.animateItem()
+                        ) {
+                            DarkTransactionCard(
+                                item = item,
+                                isSelected = selectedIds.contains(item.expense.id),
+                                isSelectionMode = isSelectionMode,
+                                onToggle = { viewModel.toggleSelection(item.expense.id) },
+                                onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
+                                onClick = {
+                                    expenseToEdit = item.expense
+                                    showEditSheet = true
+                                }
+                            )
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(80.dp)) }

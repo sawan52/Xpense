@@ -21,9 +21,8 @@ import java.util.*
 
 /**
  * All ignored transactions in one place, reached from Profile. Rows are grouped by day like
- * History; the only action is the per-row eye toggle, which un-ignores the transaction and
- * sends it back to the main lists (its date is untouched, so it reappears under its original
- * month in Insights automatically).
+ * History; swipe a row right to un-ignore it and send it back to the main lists (its date is
+ * untouched, so it reappears under its original month in Insights automatically).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +62,7 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.Archive, null, tint = TextMuted, modifier = Modifier.size(48.dp))
                     Text("No archived transactions", color = TextMuted, fontSize = 16.sp)
-                    Text("Tap the archive icon on a transaction to archive it", color = TextMuted, fontSize = 13.sp)
+                    Text("Swipe a transaction left to archive it", color = TextMuted, fontSize = 13.sp)
                 }
             }
         } else {
@@ -83,6 +82,7 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
                         val dayTotal = items.sumOf { it.expense.amount }
                         Row(
                             modifier = Modifier
+                                .animateItem()
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -95,14 +95,20 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
                         }
                     }
                     items(items, key = { it.expense.id }) { item ->
-                        DarkTransactionCard(
-                            item = item,
-                            isSelected = false,
-                            isSelectionMode = false,
-                            onToggle = {},
-                            onLongClick = {},
-                            onToggleIgnored = { viewModel.setIgnored(item.expense.id, false) }
-                        )
+                        // Swipe right to restore the transaction back into the active lists.
+                        // animateItem() slides the remaining rows up smoothly when this one leaves.
+                        SwipeToRestoreRow(
+                            onRestore = { viewModel.setIgnored(item.expense.id, false) },
+                            modifier = Modifier.animateItem()
+                        ) {
+                            DarkTransactionCard(
+                                item = item,
+                                isSelected = false,
+                                isSelectionMode = false,
+                                onToggle = {},
+                                onLongClick = {}
+                            )
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(80.dp)) }

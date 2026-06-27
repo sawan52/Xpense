@@ -205,8 +205,14 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                         .padding(20.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Donut
-                        Box(modifier = Modifier.size(140.dp), contentAlignment = Alignment.Center) {
+                        // Donut — tap to open the full category breakdown + smart insights.
+                        Box(
+                            modifier = Modifier
+                                .size(140.dp)
+                                .clip(CircleShape)
+                                .clickable { viewModel.navigateTo(Screen.INSIGHTS_DETAIL) },
+                            contentAlignment = Alignment.Center
+                        ) {
                             InsightsDonut(summary = summary, totalAmount = totalAmount, pctChange = pctChange)
                         }
                         Spacer(Modifier.width(20.dp))
@@ -256,51 +262,30 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 }
             }
 
-            // ── View Breakdown button (opens Category Breakdown + Smart Insights) ──
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(DarkCard)
-                        .clickable { viewModel.navigateTo(Screen.INSIGHTS_DETAIL) }
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(PurplePrimary.copy(alpha = 0.15f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.PieChart, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("View Breakdown", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Category breakdown & smart insights", color = TextMuted, fontSize = 12.sp)
-                    }
-                    Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, null, tint = TextMuted, modifier = Modifier.size(14.dp))
-                }
-            }
-
             // ── Transaction list ──────────────────────────────────────────
             item {
                 Text("Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             items(visibleExpenses, key = { it.expense.id }) { item ->
-                DarkTransactionCard(
-                    item = item,
-                    isSelected = selectedIds.contains(item.expense.id),
-                    isSelectionMode = isSelectionMode,
-                    onToggle = { viewModel.toggleSelection(item.expense.id) },
-                    onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
-                    onToggleIgnored = { viewModel.setIgnored(item.expense.id, !item.expense.ignored) },
-                    onClick = {
-                        expenseToEdit = item.expense
-                        showEditSheet = true
-                    }
-                )
+                // Swipe left to archive; disabled during multi-select so the checkbox tap wins.
+                // animateItem() slides the remaining rows up smoothly when this one leaves.
+                SwipeToArchiveRow(
+                    enabled = !isSelectionMode,
+                    onArchive = { viewModel.setIgnored(item.expense.id, true) },
+                    modifier = Modifier.animateItem()
+                ) {
+                    DarkTransactionCard(
+                        item = item,
+                        isSelected = selectedIds.contains(item.expense.id),
+                        isSelectionMode = isSelectionMode,
+                        onToggle = { viewModel.toggleSelection(item.expense.id) },
+                        onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
+                        onClick = {
+                            expenseToEdit = item.expense
+                            showEditSheet = true
+                        }
+                    )
+                }
             }
             if (visibleExpenses.isEmpty()) {
                 item {
@@ -478,10 +463,8 @@ fun DarkTransactionCard(
     isSelectionMode: Boolean,
     onToggle: () -> Unit,
     onLongClick: () -> Unit,
-    onToggleIgnored: () -> Unit = {},
     onClick: () -> Unit = {}
 ) {
-    val ignored = item.expense.ignored
     val color = CategoryUtils.getCategoryColor(item.category)
     Box(
         modifier = Modifier
@@ -525,19 +508,89 @@ fun DarkTransactionCard(
                     onCheckedChange = { onToggle() },
                     colors = CheckboxDefaults.colors(checkedColor = PurplePrimary)
                 )
-            } else {
-                // Archive toggle: tap to archive/unarchive this transaction.
-                IconButton(onClick = onToggleIgnored, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        if (ignored) Icons.Default.Unarchive else Icons.Default.Archive,
-                        contentDescription = if (ignored) "Unarchive transaction" else "Archive transaction",
-                        tint = if (ignored) PurpleLight else TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
             }
         }
     }
+}
+
+// ── Swipe gestures: left-to-archive (active lists), right-to-restore (Archived) ────────────
+// Both wrap a row in a SwipeToDismissBox. The swipe runs the action in confirmValueChange and
+// settles dismissed; the DB update then drops the row from its (filtered) list, so the dismissed
+// item animates away cleanly. Taps/long-press still reach the wrapped content.
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToArchiveRow(
+    enabled: Boolean,
+    onArchive: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onArchive()
+                true
+            } else false
+        }
+    )
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = enabled,
+        backgroundContent = {
+            val active = state.targetValue == SwipeToDismissBoxValue.EndToStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (active) PurplePrimary.copy(alpha = 0.25f) else Color.Transparent)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(Icons.Default.Archive, contentDescription = "Archive", tint = PurpleLight)
+            }
+        },
+        content = { content() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToRestoreRow(
+    onRestore: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.StartToEnd) {
+                onRestore()
+                true
+            } else false
+        }
+    )
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = false,
+        backgroundContent = {
+            val active = state.targetValue == SwipeToDismissBoxValue.StartToEnd
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (active) GreenPositive.copy(alpha = 0.25f) else Color.Transparent)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Icon(Icons.Default.Unarchive, contentDescription = "Restore", tint = GreenPositive)
+            }
+        },
+        content = { content() }
+    )
 }
 
 fun formatDate(timestamp: Long): String =

@@ -363,14 +363,15 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         Bullet("Pick a month from the chips at the top.")
         Bullet("The donut shows each category's share of spending, with the month's total in the centre.")
         Bullet("Use the search icon to find a transaction by name, category, or amount.")
-        Bullet("Tap View Breakdown for a category-by-category bar list and Smart Insights — friendly tips about your trends and top category.")
+        Bullet("Tap the donut chart to open the full Spending Breakdown — a category-by-category bar list plus Smart Insights, friendly tips about your trends and top category.")
+        Bullet("In the breakdown, tap any category to see just its transactions in a pop-up; close it with the ✕ in the corner.")
         MockDonut()
     },
     HelpTopic("History", Icons.Default.History, CategoryTravelColor) {
         Para("History lists every transaction, grouped by day with a daily total.")
         Bullet("Tap any transaction to edit it.")
         Bullet("Long-press to select several at once, then archive or delete them together.")
-        Bullet("Each row has an archive icon to set it aside (see Archived transactions).")
+        Bullet("Swipe a transaction left to archive it — set it aside from totals (see Archived transactions).")
         MockTransactionRow()
     },
     HelpTopic("Adding & editing an expense", Icons.Default.AddCircle, CategoryHealthColor) {
@@ -404,8 +405,8 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     },
     HelpTopic("Archived transactions", Icons.Default.Archive, CategoryHealthColor) {
         Para("Archiving hides a transaction from all totals and charts — perfect for self-transfers or anything that isn't real spending.")
-        Bullet("Tap the archive icon on any transaction to set it aside.")
-        Bullet("Find everything you've archived under Profile → Archived Transactions, and restore any of them with one tap.")
+        Bullet("Swipe a transaction left (on Insights or History) to archive it.")
+        Bullet("Find everything you've archived under Profile → Archived Transactions. Swipe a row right to restore it back into your spending.")
     },
     HelpTopic("Backup & restore", Icons.Default.CloudUpload, CategoryTravelColor) {
         Para("Keep your data safe and move it between phones using Google Drive (Profile → Backup & Restore).")
