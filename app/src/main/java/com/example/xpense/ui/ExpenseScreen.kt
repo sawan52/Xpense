@@ -594,28 +594,32 @@ fun SwipeToRevealRow(
     LaunchedEffect(enabled) { if (!enabled) offsetX.animateTo(0f) }
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // Action button revealed behind the card on the swiped edge.
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(16.dp))
-                .background(actionColor.copy(alpha = 0.18f)),
-            contentAlignment = if (revealFromEnd) Alignment.CenterEnd else Alignment.CenterStart
-        ) {
-            Column(
+        // Action button revealed behind the card on the swiped edge. Only composed while the row is
+        // actually open/being dragged AND swiping is enabled — never in selection mode, where the
+        // selected card turns semi-transparent and would otherwise let this button show through.
+        if (enabled && offsetX.value != 0f) {
+            Box(
                 modifier = Modifier
-                    .width(revealDp)
-                    .fillMaxHeight()
-                    .clickable {
-                        onAction()
-                        scope.launch { offsetX.animateTo(0f) }
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(actionColor.copy(alpha = 0.18f)),
+                contentAlignment = if (revealFromEnd) Alignment.CenterEnd else Alignment.CenterStart
             ) {
-                Icon(actionIcon, contentDescription = actionLabel, tint = actionColor, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.height(4.dp))
-                Text(actionLabel, color = actionColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier
+                        .width(revealDp)
+                        .fillMaxHeight()
+                        .clickable {
+                            onAction()
+                            scope.launch { offsetX.animateTo(0f) }
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(actionIcon, contentDescription = actionLabel, tint = actionColor, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text(actionLabel, color = actionColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
         // Foreground card — draggable horizontally to reveal the button; opaque (its own DarkCard

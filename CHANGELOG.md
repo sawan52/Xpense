@@ -4,6 +4,46 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [3.0] - 2026-06-29
+
+### Added
+- **Categories tab** in the bottom bar — opens the categories + auto-rules screen, replacing the old
+  History tab.
+- **Swipe-to-reveal actions.** Swiping a transaction now *reveals* a button you tap to confirm —
+  Archive (swipe left, on Insights) or Restore (swipe right, on the Archived screen) — so an
+  accidental swipe while scrolling no longer archives or restores anything on its own.
+- **Bar chart** for Spending Activity on Home — amounts on the left axis, months along the bottom,
+  showing a rolling last 6 months (the current month is always the rightmost bar).
+
+### Changed
+- **Insights is now your full transaction list too.** Transactions are grouped by day with each
+  day's total on the right (the layout the old History screen used).
+- Transaction rows across the whole app now show the **date only**; the exact time still appears when
+  you open a transaction to edit it.
+- The categories/auto-rules screen is reached from the new **Categories** tab; its header reads
+  "Categories" with no back arrow.
+- **Home decluttered:** removed the Quick Actions section and the top-right Sync icon — add with the
+  **+** button, and "View All" now opens Insights. Also removed the leftover "UPI" tag from recent
+  rows and the "This Month" chip beside the Spending Activity header.
+- **Backup & Restore:** the automatic-backup **Frequency** chooser now starts collapsed each visit
+  and opens on tap.
+- The **Confirm Sync** dialog's Cancel / Sync buttons now split the width evenly.
+
+### Fixed
+- **Auto-rules no longer match the UPI handle after “@”.** A keyword like `airtel` was matching the
+  bank/app handle inside `policybaza@mairtel` (the "mairtel" part) and mis-categorizing it as Airtel
+  / Bills. Matching now ignores everything after “@” in a UPI id — on both the message and a rule's
+  own keyword — so the keyword matches the merchant, not the handle.
+- **ICICI debit SMS** that name the payee after “credited” (e.g. "… debited for Rs 164 …; Amazon Pay
+  Groc credited") now record the real merchant instead of capturing the amount text.
+- In multi-select, a selected transaction no longer shows the swipe **Archive** button bleeding
+  through its highlighted card — the swipe action is hidden unless you're actually swiping a row.
+
+### Removed
+- The standalone **History** screen and bottom-nav tab (its day-grouped list now lives on Insights).
+- The **Category Rules** entry from Profile (use the Categories tab) and the Home **Quick Actions** /
+  sync shortcuts.
+
 ## [2.9] - 2026-06-28
 
 ### Added
