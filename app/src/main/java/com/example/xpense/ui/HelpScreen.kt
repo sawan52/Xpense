@@ -376,6 +376,7 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         Bullet("Enter the amount, pick a category, and type where you spent. Date, time, and an optional note are all editable.")
         Bullet("Need a category that doesn't exist yet? Tap the + New pill to create one on the spot.")
         Bullet("Tap any existing transaction to edit it. For SMS transactions, an “Add a rule for this” button lets you teach Xpense how to categorize similar ones in future.")
+        Bullet("If you manually re-categorize a transaction that a rule already covers, a “Force auto rule” button appears next time you open it — tap it to snap the category and merchant back to what the rule says (your amount and note are kept).")
         MockCategoryPills()
     },
     HelpTopic("Categories & auto-rules", Icons.Default.Category, CategoryShoppingColor) {

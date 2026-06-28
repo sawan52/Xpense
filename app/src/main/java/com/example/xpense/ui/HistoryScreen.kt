@@ -147,6 +147,7 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
         val editing = expenseToEdit!!
         val showAddRule = editing.rawSms != "Manual Entry" && editing.rawSms != "Manual Update" &&
             !viewModel.hasUserRuleFor(editing)
+        val showForceRule = viewModel.forcibleRuleFor(editing) != null
         AddExpenseBottomSheet(
             expense = expenseToEdit,
             categories = categories,
@@ -165,6 +166,12 @@ fun HistoryScreen(viewModel: ExpenseViewModel) {
                 showEditSheet = false
                 viewModel.exitSelectionMode()
                 viewModel.requestRulePrefill(editing.merchant)
+            },
+            showForceRule = showForceRule,
+            onForceRule = {
+                showEditSheet = false
+                viewModel.exitSelectionMode()
+                viewModel.forceRule(editing.id)
             }
         )
     }

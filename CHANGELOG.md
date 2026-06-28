@@ -4,6 +4,20 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.9] - 2026-06-28
+
+### Added
+- **"Force auto rule" button.** When you manually re-categorize a transaction that a rule already
+  covers, that edit is kept and the rule no longer touches it (an intentional override). Re-opening
+  such a transaction now shows a **Force auto rule** button that re-applies the rule in one tap —
+  resetting the category and merchant to what the rule says, while keeping your amount and note. This
+  replaces the old workaround of deleting the transaction and running a history sync.
+
+### Changed
+- Editing **only the amount or note** of a rule-covered transaction no longer counts as overriding
+  the rule, so the rule still governs its category. Only changing the category or merchant marks a
+  transaction as a manual override (and is what the new Force button reverses).
+
 ## [2.8] - 2026-06-28
 
 ### Changed

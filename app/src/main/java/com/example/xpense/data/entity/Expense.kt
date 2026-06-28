@@ -26,10 +26,13 @@ data class Expense(
     val ignored: Boolean = false,
     // Optional free-text note the user attaches when editing/adding a transaction. Null = no note.
     val note: String? = null,
-    // "User-pinned": set when the user edits this transaction AND a rule already matched it at that
-    // time. Such a row is the user's deliberate override of an already-applied rule, so rule
-    // re-application leaves it untouched (rule > manual edit, EXCEPT a manual edit made after a rule
-    // existed wins). Editing a still-rule-less row does NOT pin it, so a rule created later can still
-    // apply. Also dismisses the "uncategorized" notification. See reapplyDecision / updateExpense.
+    // "User-pinned": set when the user's edit DIVERGES this transaction's category/merchant from a
+    // rule that already matches it. Such a row is the user's deliberate override of an applied rule,
+    // so rule re-application leaves it untouched (rule > manual edit, EXCEPT a manual edit made after
+    // a rule existed wins). Editing a still-rule-less row — or only the amount/note of a ruled row —
+    // does NOT pin it, so a rule created later can still apply. Cleared by "Force auto rule", which
+    // re-applies the rule in-app (replacing the old delete + history-resync workaround). Also
+    // dismisses the "uncategorized" notification. See forcibleRuleOutcome / reapplyDecision /
+    // updateExpense / forceRule.
     val categoryLocked: Boolean = false
 )

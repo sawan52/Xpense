@@ -425,6 +425,32 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         return SmsParser.categorizationFor(expense.rawSms, allRules.value, allCategories.value).fromRule
     }
 
+    /**
+     * Non-null when this row has a matching user rule but was manually diverged from it — i.e. the
+     * edit sheet should offer "Force auto rule". The value is what forcing would apply. Manual rows
+     * have no SMS to match, so they always return null. See [forcibleRuleOutcome].
+     */
+    fun forcibleRuleFor(expense: Expense): ForcibleRule? {
+        if (expense.rawSms == "Manual Entry" || expense.rawSms == "Manual Update") return null
+        val c = SmsParser.categorizationFor(expense.rawSms, allRules.value, allCategories.value)
+        return forcibleRuleOutcome(expense.categoryId, expense.merchant, c.fromRule, c.categoryId, c.label)
+    }
+
+    /**
+     * Re-applies the matching rule to one manually-overridden row: sets the rule's category and its
+     * label as the merchant, and clears the pin so the rule governs the row again. Amount, note,
+     * date, rawSms and dedupKey are left untouched. No-op if the row has nothing to force.
+     */
+    fun forceRule(id: Long) {
+        viewModelScope.launch {
+            val e = expenseDao.getExpenseById(id) ?: return@launch
+            val target = forcibleRuleFor(e) ?: return@launch
+            expenseDao.updateExpense(
+                e.copy(categoryId = target.categoryId, merchant = target.merchant, categoryLocked = false)
+            )
+        }
+    }
+
     fun selectMonth(month: String) {
         _selectedMonth.value = month
     }
@@ -479,11 +505,16 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             // Update only the editable columns; rawSms + dedupKey must survive so resync still
             // recognises an edited SMS row and skips it instead of inserting a duplicate.
             //
-            // Pin the row (categoryLocked) — so rule re-application never overrides this edit — ONLY
-            // when a rule ALREADY matches it. Editing a still-rule-less transaction leaves it
-            // unpinned, so a rule created later can still apply to it. Once pinned, it stays pinned.
+            // Pin the row (categoryLocked) — so rule re-application never overrides this edit — only
+            // when this edit DIVERGES the category/merchant from a rule that already matches it.
+            // Editing a still-rule-less transaction (or only its amount/note, which leave the
+            // category/merchant equal to the rule's outcome) leaves it unpinned, so a rule created
+            // later can still apply. This keeps "pinned ⟺ Force auto rule is offered" true.
             val existing = expenseDao.getExpenseById(id)
-            val pinned = existing?.categoryLocked == true || (existing != null && hasUserRuleFor(existing))
+            val pinned = existing != null && run {
+                val c = SmsParser.categorizationFor(existing.rawSms, allRules.value, allCategories.value)
+                forcibleRuleOutcome(categoryId, merchant, c.fromRule, c.categoryId, c.label) != null
+            }
             expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note, pinned)
         }
     }
@@ -689,6 +720,34 @@ fun reapplyDecision(
         else -> currentMerchant
     }
     return ReapplyDecision(newCategoryId, newMerchant)
+}
+
+/** The category + merchant a "Force auto rule" would apply to a row. */
+data class ForcibleRule(val categoryId: Long, val merchant: String)
+
+/**
+ * Pure check for whether a row is a manual override of an existing rule, and if so what re-applying
+ * that rule would set (no DB/IO so it is unit-testable).
+ *
+ * Returns null when there is nothing to force: no real user rule matches ([fromRule] false /
+ * [ruleCategoryId] 0), or the row already equals its rule's outcome. A non-null result means the
+ * stored category/merchant diverge from the rule — which is exactly when the row should be pinned
+ * (it's a deliberate override) and when the "Force auto rule" button should be offered.
+ *
+ * The rule's outcome merchant is its [ruleLabel] when set; a label-less rule only governs category,
+ * so the row keeps its current merchant.
+ */
+fun forcibleRuleOutcome(
+    currentCategoryId: Long,
+    currentMerchant: String,
+    fromRule: Boolean,
+    ruleCategoryId: Long,
+    ruleLabel: String?
+): ForcibleRule? {
+    if (!fromRule || ruleCategoryId == 0L) return null
+    val targetMerchant = if (!ruleLabel.isNullOrBlank()) ruleLabel else currentMerchant
+    return if (currentCategoryId != ruleCategoryId || currentMerchant != targetMerchant)
+        ForcibleRule(ruleCategoryId, targetMerchant) else null
 }
 
 /** Normalized form of a rule label used for grouping: blank/null collapse to null. */

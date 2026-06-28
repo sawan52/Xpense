@@ -47,7 +47,11 @@ fun AddExpenseBottomSheet(
     onAddCategory: ((name: String, icon: String) -> Unit)? = null,
     // When true, a secondary "Add a rule for this" button appears (for SMS rows with no rule yet).
     showAddRule: Boolean = false,
-    onAddRule: () -> Unit = {}
+    onAddRule: () -> Unit = {},
+    // When true, a "Force auto rule" button appears (for SMS rows whose matching rule the user has
+    // manually overridden). Mutually exclusive with showAddRule.
+    showForceRule: Boolean = false,
+    onForceRule: () -> Unit = {}
 ) {
     var amount by remember { mutableStateOf(expense?.amount?.takeIf { it > 0 }?.toString() ?: "") }
     var merchant by remember { mutableStateOf(expense?.merchant ?: "") }
@@ -339,6 +343,25 @@ fun AddExpenseBottomSheet(
                     Icon(Icons.Default.AddTask, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Add a rule for this", color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // Re-apply the matching rule, discarding this manual override (shown only for SMS rows
+            // whose rule the user has diverged from). Resets category + merchant, keeps amount/note.
+            if (showForceRule) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(1.dp, PurplePrimary, RoundedCornerShape(16.dp))
+                        .clickable { onForceRule() }
+                        .padding(vertical = 14.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AutoFixHigh, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Force auto rule", color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
