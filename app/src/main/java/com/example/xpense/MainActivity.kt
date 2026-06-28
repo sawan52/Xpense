@@ -139,7 +139,6 @@ class MainActivity : ComponentActivity() {
                                 Screen.HOME           -> SummaryScreen(viewModel, onAddExpense = { showAddSheet = true })
                                 Screen.INSIGHTS       -> ExpenseScreen(viewModel)
                                 Screen.INSIGHTS_DETAIL -> InsightsDetailScreen(viewModel)
-                                Screen.HISTORY        -> HistoryScreen(viewModel)
                                 Screen.PROFILE        -> ProfileScreen(viewModel)
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
                                 Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
@@ -267,10 +266,10 @@ fun XpenseBottomBar(
                 Icon(Icons.Default.Add, "Add expense", tint = Color.White, modifier = Modifier.size(28.dp))
             }
             NavBarItem(
-                icon = Icons.Default.History,
-                label = "History",
-                selected = currentScreen == Screen.HISTORY,
-                onClick = { onNavigate(Screen.HISTORY) }
+                icon = Icons.Default.Category,
+                label = "Categories",
+                selected = currentScreen == Screen.CATEGORY_RULES,
+                onClick = { onNavigate(Screen.CATEGORY_RULES) }
             )
             NavBarItem(
                 icon = Icons.Default.Person,

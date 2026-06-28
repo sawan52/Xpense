@@ -3,6 +3,9 @@ package com.example.xpense.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,14 +45,24 @@ fun SyncDialogs(viewModel: ExpenseViewModel) {
             containerColor = DarkCard,
             title = { Text("Confirm Sync", color = TextPrimary, fontWeight = FontWeight.Bold) },
             text = { Text("Scan your SMS inbox (last 6 months) for bank transactions?", color = TextSecondary) },
+            // Both actions live in the confirm slot as a full-width 50/50 row so Cancel and Sync
+            // get equal space, instead of the default end-hugging layout where their widths differ.
             confirmButton = {
-                Button(
-                    onClick = { viewModel.confirmSyncAndStart() },
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-                ) { Text("Yes, Sync Now", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.hideSyncConfirm() }) { Text("Cancel", color = TextSecondary) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        onClick = { viewModel.hideSyncConfirm() },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Cancel", color = TextSecondary) }
+                    Button(
+                        onClick = { viewModel.confirmSyncAndStart() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) { Text("Yes, Sync Now", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
+                }
             }
         )
     }

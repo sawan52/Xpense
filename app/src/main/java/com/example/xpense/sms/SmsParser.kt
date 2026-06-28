@@ -92,6 +92,14 @@ object SmsParser {
         "(?i)\\b(your|account|bank)\\b"
     )
 
+    // A currency-prefixed amount at the START of a captured name means the capture is really the
+    // amount, not a merchant. ICICI debits phrase the spend as "... debited FOR Rs 164.00 on
+    // 27-Jun-26; ..." so the at/to/for capture grabs "Rs 164.00 on 27-Jun-26" — an amount is never
+    // a merchant. Requires a digit after the currency token so a name like "INR Foods" is kept.
+    private val LEADING_AMOUNT_PATTERN = Pattern.compile(
+        "(?i)^(?:Rs\\.?|INR|Amt)\\s*\\d"
+    )
+
     // Card spend alerts (e.g. Axis) name the merchant on its OWN line, with no "at/to" preposition,
     // immediately above the available-limit line:
     //     Spent INR 299 ... \n GOOGLEPLAY \n Avl Limit: INR 123456
@@ -211,7 +219,12 @@ object SmsParser {
             // "at Swiggy", "to Zomato", "at VPA abc@upi"
             Pattern.compile("(?i)(?:at|to|in\\*|for)\\s(?:VPA\\s)?([A-Za-z0-9][A-Za-z0-9\\s.\\-@]{2,})"),
             // "spent on Swiggy"
-            Pattern.compile("(?i)spent\\s+on\\s+([A-Za-z0-9][A-Za-z0-9\\s.]{2,})")
+            Pattern.compile("(?i)spent\\s+on\\s+([A-Za-z0-9][A-Za-z0-9\\s.]{2,})"),
+            // ICICI-style debits name the payee right BEFORE "credited" — "... debited for Rs 164.00
+            // on 27-Jun-26; Amazon Pay Groc credited." — with no at/to/for preposition. Reached only
+            // on confirmed debits, so the "credited" party is the beneficiary/payee (genuine incoming
+            // credits carry no debit verb and are already rejected before extraction).
+            Pattern.compile("(?i)([A-Za-z][A-Za-z0-9 .&'/@*\\-]{1,40}?)\\s+credited\\b")
         )
         for (p in patterns) {
             val m = p.matcher(smsBody)
@@ -226,6 +239,9 @@ object SmsParser {
                     raw.take(25)
                 }
                 if (candidate.isEmpty()) continue
+                // The "<verb> for Rs <amount>" phrasing makes the at/to/for capture grab the amount
+                // string itself ("Rs 164.00 on 27-Jun-26"); an amount is never a merchant.
+                if (LEADING_AMOUNT_PATTERN.matcher(candidate).find()) continue
                 // A merchant name always contains a letter; reject phone/reference numbers such as
                 // the "...SMS BLOCK 1234 to 9999999999" fraud-report line that a bare "to <number>"
                 // would otherwise grab when the real merchant carries no at/to/for preposition.
@@ -256,7 +272,7 @@ object SmsParser {
         rules: List<CategoryRule>,
         categories: List<Category>
     ): Categorization {
-        val text = (merchant + " " + smsBody).lowercase()
+        val text = stripHandles((merchant + " " + smsBody).lowercase())
 
         // A rule's keyword field holds one or more '|'-separated alternatives, each a comma-
         // separated AND-group: "nach, groww invest | nach, indian clearing" matches when ANY
@@ -293,14 +309,22 @@ object SmsParser {
 
     private fun String.containsAny(vararg terms: String) = terms.any { this.contains(it) }
 
+    // The text after "@" in a UPI id is a PSP/bank handle or payment id (@ybl = PhonePe,
+    // @amaznaxis, @mairtel), never a merchant. Rule matching must ignore it so a keyword like
+    // "airtel" can't match the handle "mairtel". Stripped from BOTH the match text and rule
+    // keywords (so a rule typed with an "@", e.g. "policybaza@axis", matches as just "policybaza").
+    private val UPI_HANDLE_PATTERN = Pattern.compile("@\\S*")
+    private fun stripHandles(s: String): String = UPI_HANDLE_PATTERN.matcher(s).replaceAll("")
+
     /**
      * Splits a rule's keyword field into '|'-separated alternative groups, each a list of
-     * trimmed, lowercased comma-separated terms. Blank terms and empty groups are dropped,
-     * so stray separators ("a, b |") can't produce a match-everything group.
+     * trimmed, lowercased comma-separated terms with any UPI "@handle" suffix stripped. Blank
+     * terms and empty groups are dropped, so stray separators ("a, b |") and pure-handle keywords
+     * ("@ybl") can't produce a match-everything or empty group.
      */
     private fun keywordGroupsOf(rule: CategoryRule): List<List<String>> =
         rule.keyword.split('|').map { group ->
-            group.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+            group.split(',').map { stripHandles(it.trim().lowercase()) }.filter { it.isNotEmpty() }
         }.filter { it.isNotEmpty() }
 
     /**

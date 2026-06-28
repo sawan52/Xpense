@@ -216,11 +216,9 @@ private fun MockTransactionRow() = MockFrame {
         ) { Icon(Icons.Default.Restaurant, null, tint = CategoryFoodColor, modifier = Modifier.size(18.dp)) }
         Column(modifier = Modifier.weight(1f)) {
             Text("Swiggy", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("Food · 8:24 PM", color = TextMuted, fontSize = 11.sp)
+            Text("Food · 28 Jun", color = TextMuted, fontSize = 11.sp)
         }
         Text("−₹450", color = RedNegative, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(8.dp))
-        Icon(Icons.Default.Archive, null, tint = TextMuted, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -346,29 +344,26 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         Para("On first launch, Xpense sets up 7 default categories (Food, Shopping, Transport, Bills, Health, Entertainment, Others) and a few starter rules, so it works right away.")
         Bullet("SMS permission is required — it's how Xpense reads your bank's transaction messages and tracks spending automatically. Your messages never leave your phone.")
         Bullet("Notification permission (Android 13+) is optional — it lets Xpense alert you when a transaction needs a category. You can use the app without it.")
+        Bullet("Get around with the bottom bar: Home, Insights, the centre + button to add an expense, Categories, and Profile.")
     },
     HelpTopic("Home & balance", Icons.Default.Home, CategoryBillsColor) {
         Para("Your home screen is a quick snapshot of your money.")
         Bullet("Total Balance shows your overall spending. Tap the eye icon to hide or reveal the amount.")
         Bullet("The ▲/▼ figure compares this month with last month, and the mini graph shows the last 6 months.")
-        Bullet("Quick Actions let you Add an Expense or jump to Categories. Recent transactions appear below — tap View All for the full list.")
-        Bullet("The sync icon (top-right) imports your past bank SMS.")
+        Bullet("Spending Activity charts your recent months, and your latest transactions appear below — tap View All to open Insights for the full, day-by-day list.")
+        Bullet("Add an expense any time with the + button in the centre of the bottom bar.")
         MockBalanceCard()
     },
-    HelpTopic("Insights & charts", Icons.Default.PieChart, CategoryEntertainmentColor) {
-        Para("The Insights tab breaks down where your money goes.")
+    HelpTopic("Insights & transactions", Icons.Default.PieChart, CategoryEntertainmentColor) {
+        Para("The Insights tab is both your spending breakdown and your full transaction list.")
         Bullet("Pick a month from the chips at the top.")
         Bullet("The donut shows each category's share of spending, with the month's total in the centre.")
         Bullet("Use the search icon to find a transaction by name, category, or amount.")
         Bullet("Tap the donut chart to open the full Spending Breakdown — a category-by-category bar list plus Smart Insights, friendly tips about your trends and top category.")
         Bullet("In the breakdown, tap any category to see just its transactions in a pop-up; close it with the ✕ in the corner.")
         MockDonut()
-    },
-    HelpTopic("History", Icons.Default.History, CategoryTravelColor) {
-        Para("History lists every transaction, grouped by day with a daily total.")
-        Bullet("Tap any transaction to edit it.")
-        Bullet("Long-press to select several at once, then archive or delete them together.")
-        Bullet("Swipe a transaction left to archive it — set it aside from totals (see Archived transactions).")
+        Bullet("Below the chart, the month's transactions are grouped by day, with that day's total on the right. Rows show the date — the exact time appears when you open a transaction.")
+        Bullet("Tap a transaction to edit it; long-press to select several and archive or delete them together.")
         MockTransactionRow()
     },
     HelpTopic("Adding & editing an expense", Icons.Default.AddCircle, CategoryHealthColor) {
@@ -380,10 +375,11 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         MockCategoryPills()
     },
     HelpTopic("Categories & auto-rules", Icons.Default.Category, CategoryShoppingColor) {
-        Para("Categories group your spending; auto-rules decide which category a transaction lands in. Manage both under Profile → Category Rules.")
+        Para("Categories group your spending; auto-rules decide which category a transaction lands in. Open them from the Categories tab in the bottom bar, which has Categories and Auto-Rules sub-tabs.")
         Bullet("Add, rename, or delete categories. “Others” can't be deleted — if you delete a category, its transactions and rules move to Others.")
         Bullet("A rule maps keywords to a category. In the keyword box: a comma means all those words must appear, and a “|” separates alternatives.")
         Bullet("Example: “swiggy | zomato” sends either to Food. You can also set a display name (e.g. “MF SIP”).")
+        Bullet("Rules ignore everything after “@” in a UPI id (the bank/app handle like @ybl or @okhdfc), so your keyword matches the merchant — not the handle.")
         Bullet("Re-apply rules updates existing transactions; Merge duplicate rules combines rules that share a category and label into one.")
         MockRuleChip()
     },
@@ -391,8 +387,8 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         Para("Xpense reads incoming bank SMS and records your spending without any typing.")
         Bullet("It captures debits/payments, and intelligently skips OTPs, credits & refunds, credit-card bill payments, and mutual-fund confirmations, so nothing is double-counted.")
         Bullet("Duplicate messages are ignored automatically.")
-        Bullet("Use Sync SMS History (home or Profile) to import the last 6 months in one go.")
-        Bullet("If you change a transaction's category by hand, Xpense locks it and never overwrites your choice.")
+        Bullet("Use Sync SMS History (Profile) to import the last 6 months in one go.")
+        Bullet("If you change a transaction's category by hand, your choice is kept. A matching auto-rule takes priority though — and you can snap a transaction back to its rule any time with the “Force auto rule” button.")
     },
     HelpTopic("Notifications inbox", Icons.Default.Notifications, CategoryEntertainmentColor) {
         Para("When Xpense can't confidently categorize a transaction, it files it under Others and lists it here (Profile → Notifications) so you can fix it later.")
@@ -403,8 +399,8 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     },
     HelpTopic("Archived transactions", Icons.Default.Archive, CategoryHealthColor) {
         Para("Archiving hides a transaction from all totals and charts — perfect for self-transfers or anything that isn't real spending.")
-        Bullet("Swipe a transaction left (on Insights or History) to archive it.")
-        Bullet("Find everything you've archived under Profile → Archived Transactions. Swipe a row right to restore it back into your spending.")
+        Bullet("On Insights, swipe a transaction left to reveal an Archive button, then tap it to archive. Nothing is archived until you tap — so an accidental swipe while scrolling is harmless.")
+        Bullet("Find everything you've archived under Profile → Archived Transactions. There, swipe a row right to reveal a Restore button, then tap it to bring the transaction back.")
     },
     HelpTopic("Backup & restore", Icons.Default.CloudUpload, CategoryTravelColor) {
         Para("Keep your data safe and move it between phones using Google Drive (Profile → Backup & Restore).")

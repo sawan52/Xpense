@@ -113,14 +113,6 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
             )
             HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileMenuItem(
-                icon = Icons.Default.Category,
-                iconColor = CategoryShoppingColor,
-                title = "Category Rules",
-                subtitle = "Manage auto-categorization",
-                onClick = { viewModel.navigateTo(Screen.CATEGORY_RULES) }
-            )
-            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
-            ProfileMenuItem(
                 icon = Icons.Default.Sync,
                 iconColor = CategoryTravelColor,
                 title = "Sync SMS History",

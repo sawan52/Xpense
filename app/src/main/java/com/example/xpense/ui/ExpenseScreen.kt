@@ -1,9 +1,13 @@
 package com.example.xpense.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,11 +28,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.ui.components.AddExpenseBottomSheet
@@ -88,6 +98,15 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
 
     val topEntry = summary.maxByOrNull { it.value }
     val topPct   = if (totalAmount > 0) ((topEntry?.value ?: 0.0) / totalAmount * 100).toInt() else 0
+
+    // Group the month's transactions by day so the list reads like the History screen: a date
+    // header with that day's total on the right, followed by the day's transactions. Rows arrive
+    // newest-first (DAO orders by date DESC), so groups and rows are already in descending order.
+    val dayFmt  = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val today   = remember { dayFmt.format(Date()) }
+    val grouped = remember(visibleExpenses) {
+        visibleExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
+    }
 
     Column(
         modifier = Modifier
@@ -263,29 +282,47 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 }
             }
 
-            // ── Transaction list ──────────────────────────────────────────
-            item {
-                Text("Transactions", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-            items(visibleExpenses, key = { it.expense.id }) { item ->
-                // Swipe left to archive; disabled during multi-select so the checkbox tap wins.
-                // animateItem() slides the remaining rows up smoothly when this one leaves.
-                SwipeToArchiveRow(
-                    enabled = !isSelectionMode,
-                    onArchive = { viewModel.setIgnored(item.expense.id, true) },
-                    modifier = Modifier.animateItem()
-                ) {
-                    DarkTransactionCard(
-                        item = item,
-                        isSelected = selectedIds.contains(item.expense.id),
-                        isSelectionMode = isSelectionMode,
-                        onToggle = { viewModel.toggleSelection(item.expense.id) },
-                        onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
-                        onClick = {
-                            expenseToEdit = item.expense
-                            showEditSheet = true
-                        }
-                    )
+            // ── Day-grouped transaction list (date on the left, day's total on the right) ──
+            grouped.forEach { (date, dayItems) ->
+                item(key = "header_$date") {
+                    val label = if (date == today) "Today" else date
+                    val dayTotal = dayItems.sumOf { it.expense.amount }
+                    Row(
+                        modifier = Modifier
+                            .animateItem()
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "₹${CurrencyUtils.format(dayTotal, 2)}",
+                            color = TextMuted, fontSize = 12.sp
+                        )
+                    }
+                }
+                items(dayItems, key = { it.expense.id }) { item ->
+                    // Swipe left to archive; disabled during multi-select so the checkbox tap wins.
+                    // animateItem() slides the remaining rows up smoothly when this one leaves.
+                    SwipeToArchiveRow(
+                        enabled = !isSelectionMode,
+                        onArchive = { viewModel.setIgnored(item.expense.id, true) },
+                        modifier = Modifier.animateItem()
+                    ) {
+                        DarkTransactionCard(
+                            item = item,
+                            isSelected = selectedIds.contains(item.expense.id),
+                            isSelectionMode = isSelectionMode,
+                            onToggle = { viewModel.toggleSelection(item.expense.id) },
+                            onLongClick = { viewModel.enterSelectionMode(item.expense.id) },
+                            onClick = {
+                                expenseToEdit = item.expense
+                                showEditSheet = true
+                            },
+                            showTime = false
+                        )
+                    }
                 }
             }
             if (visibleExpenses.isEmpty()) {
@@ -471,7 +508,10 @@ fun DarkTransactionCard(
     isSelectionMode: Boolean,
     onToggle: () -> Unit,
     onLongClick: () -> Unit,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    // When false the row shows the date without the time (used on the Insights list); the time is
+    // still visible when the transaction is opened in the edit sheet.
+    showTime: Boolean = true
 ) {
     val color = CategoryUtils.getCategoryColor(item.category)
     Box(
@@ -505,7 +545,7 @@ fun DarkTransactionCard(
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${item.category.name} • ${formatHomeDate(item.expense.date)}",
+                    "${item.category.name} • ${if (showTime) formatHomeDate(item.expense.date) else formatCardDate(item.expense.date)}",
                     color = TextMuted, fontSize = 12.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
@@ -529,12 +569,82 @@ fun DarkTransactionCard(
     }
 }
 
-// ── Swipe gestures: left-to-archive (active lists), right-to-restore (Archived) ────────────
-// Both wrap a row in a SwipeToDismissBox. The swipe runs the action in confirmValueChange and
-// settles dismissed; the DB update then drops the row from its (filtered) list, so the dismissed
-// item animates away cleanly. Taps/long-press still reach the wrapped content.
+// ── Swipe-to-reveal actions: swipe left to reveal "Archive" (active lists), swipe right to reveal
+// "Restore" (Archived). The row only slides to expose a button — the action runs ONLY when that
+// button is tapped, so an accidental swipe while scrolling never archives/restores on its own. The
+// drag is horizontal-only, so vertical list scrolling is unaffected.
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToRevealRow(
+    enabled: Boolean,
+    revealFromEnd: Boolean,          // true: swipe-left reveals on the right; false: swipe-right on the left
+    actionIcon: ImageVector,
+    actionLabel: String,
+    actionColor: Color,
+    onAction: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val revealDp = 92.dp
+    val revealPx = with(LocalDensity.current) { revealDp.toPx() }
+    val scope = rememberCoroutineScope()
+    val offsetX = remember { Animatable(0f) }
+
+    // Closed = 0. Swipe-left reveals on the right (negative offset); swipe-right reveals on the left.
+    val minOffset = if (revealFromEnd) -revealPx else 0f
+    val maxOffset = if (revealFromEnd) 0f else revealPx
+
+    // Snap shut when the row is disabled (e.g. entering multi-select).
+    LaunchedEffect(enabled) { if (!enabled) offsetX.animateTo(0f) }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        // Action button revealed behind the card on the swiped edge.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(16.dp))
+                .background(actionColor.copy(alpha = 0.18f)),
+            contentAlignment = if (revealFromEnd) Alignment.CenterEnd else Alignment.CenterStart
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(revealDp)
+                    .fillMaxHeight()
+                    .clickable {
+                        onAction()
+                        scope.launch { offsetX.animateTo(0f) }
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(actionIcon, contentDescription = actionLabel, tint = actionColor, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(actionLabel, color = actionColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        // Foreground card — draggable horizontally to reveal the button; opaque (its own DarkCard
+        // background) so it fully hides the button when closed.
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .draggable(
+                    enabled = enabled,
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        scope.launch { offsetX.snapTo((offsetX.value + delta).coerceIn(minOffset, maxOffset)) }
+                    },
+                    onDragStopped = {
+                        // Settle open past the half-way point, otherwise snap closed.
+                        val opened = abs(offsetX.value) >= revealPx / 2f
+                        offsetX.animateTo(if (!opened) 0f else if (revealFromEnd) minOffset else maxOffset)
+                    }
+                )
+        ) {
+            content()
+        }
+    }
+}
+
 @Composable
 fun SwipeToArchiveRow(
     enabled: Boolean,
@@ -542,72 +652,40 @@ fun SwipeToArchiveRow(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onArchive()
-                true
-            } else false
-        }
-    )
-    SwipeToDismissBox(
-        state = state,
+    SwipeToRevealRow(
+        enabled = enabled,
+        revealFromEnd = true,
+        actionIcon = Icons.Default.Archive,
+        actionLabel = "Archive",
+        actionColor = PurpleLight,
+        onAction = onArchive,
         modifier = modifier,
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = enabled,
-        backgroundContent = {
-            val active = state.targetValue == SwipeToDismissBoxValue.EndToStart
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (active) PurplePrimary.copy(alpha = 0.25f) else Color.Transparent)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(Icons.Default.Archive, contentDescription = "Archive", tint = PurpleLight)
-            }
-        },
-        content = { content() }
+        content = content
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeToRestoreRow(
     onRestore: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.StartToEnd) {
-                onRestore()
-                true
-            } else false
-        }
-    )
-    SwipeToDismissBox(
-        state = state,
+    SwipeToRevealRow(
+        enabled = true,
+        revealFromEnd = false,
+        actionIcon = Icons.Default.Unarchive,
+        actionLabel = "Restore",
+        actionColor = GreenPositive,
+        onAction = onRestore,
         modifier = modifier,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = false,
-        backgroundContent = {
-            val active = state.targetValue == SwipeToDismissBoxValue.StartToEnd
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (active) GreenPositive.copy(alpha = 0.25f) else Color.Transparent)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Icon(Icons.Default.Unarchive, contentDescription = "Restore", tint = GreenPositive)
-            }
-        },
-        content = { content() }
+        content = content
     )
 }
 
 fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(timestamp))
+
+// Date without the time — used on the Insights transaction list, where the time is intentionally
+// hidden (it's still shown when the transaction is opened in the edit sheet).
+fun formatCardDate(ts: Long): String =
+    SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(ts))

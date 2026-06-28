@@ -80,9 +80,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 Text("${userName.substringBefore(' ')} 👋", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("You're doing great! Keep it up.", color = TextMuted, fontSize = 12.sp)
             }
-            IconButton(onClick = { viewModel.startHistoricalSync() }, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Default.Sync, "Sync SMS history", tint = TextSecondary, modifier = Modifier.size(22.dp))
-            }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -161,21 +158,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
 
         Spacer(Modifier.height(28.dp))
 
-        // ── Quick actions ─────────────────────────────────────────────────
-        SectionHeader("Quick Actions")
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            QuickActionItem(Icons.Default.Add,      "Add Expense", Modifier.weight(1f)) { onAddExpense() }
-            QuickActionItem(Icons.Default.GridView, "Categories",  Modifier.weight(1f)) { viewModel.navigateTo(Screen.CATEGORY_RULES) }
-        }
-
-        Spacer(Modifier.height(28.dp))
-
         // ── Spending activity ─────────────────────────────────────────────
         Row(
             modifier = Modifier
@@ -226,7 +208,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 color = PurpleLight,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { viewModel.navigateTo(Screen.HISTORY) }
+                modifier = Modifier.clickable { viewModel.navigateTo(Screen.INSIGHTS) }
             )
         }
         Spacer(Modifier.height(12.dp))
@@ -303,46 +285,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
 
         Spacer(Modifier.height(100.dp))
     }
-}
-
-// ── Quick action tile ─────────────────────────────────────────────────────
-@Composable
-fun QuickActionItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(DarkSurface, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
-        }
-        Text(label, color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier) {
-    Text(
-        title,
-        color = TextPrimary,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = modifier.padding(horizontal = 20.dp)
-    )
 }
 
 fun formatHomeDate(ts: Long): String =

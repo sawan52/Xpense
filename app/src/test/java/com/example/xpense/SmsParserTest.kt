@@ -500,6 +500,112 @@ class SmsParserTest {
     }
 
     @Test
+    fun testIciciDebitPayeeReadFromBeforeCredited() {
+        // ICICI phrases the spend as "... debited for Rs N ...; <payee> credited." — the payee is
+        // named AFTER "credited" with no at/to/for preposition. The for-capture would otherwise grab
+        // the amount string ("Rs 164.00 on 27-Jun-26") as the merchant; that is rejected and the real
+        // payee is read from the word before "credited".
+        val sms = "ICICI Bank Acct XX013 debited for Rs 164.00 on 27-Jun-26; Amazon Pay Groc " +
+            "credited. UPI:751483975479. Call 18002662 for dispute. SMS BLOCK 013 to 9215676766."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(164.0, txn?.amount)          // first Rs amount, not the dispute/block numbers
+        assertEquals("Amazon Pay Groc", txn?.merchant)
+        assertEquals(2L, txn?.categoryId)         // Shopping (amazon keyword)
+    }
+
+    @Test
+    fun testAmountStringNotUsedAsMerchant() {
+        // Even without a "credited" payee, the "debited for Rs <amount>" capture must never store the
+        // amount as the merchant — it falls back to Unknown instead.
+        val sms = "A/c XX013 debited for Rs 164.00 on 27-Jun-26. Ref 751483975479."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(164.0, txn?.amount)
+        assertEquals("Unknown", txn?.merchant)
+    }
+
+    @Test
+    fun testRuleKeywordDoesNotMatchUpiHandleSuffix() {
+        // Reported bug: a card txn to UPI id "policybaza@mairtel" was caught by an "airtel -> Bills"
+        // rule because "airtel" is a substring of the handle "mairtel". The part after "@" is a
+        // PSP/bank handle, never a merchant, so it must not be matched. The "policybaza" rule (which
+        // matches the name BEFORE "@") must win instead.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(
+            CategoryRule(id = 1, keyword = "airtel", categoryId = 4L, label = "Airtel"),       // Bills
+            CategoryRule(id = 2, keyword = "policybaza", categoryId = 7L, label = "Term Insurance") // Investment
+        )
+        val sms = """
+            Txn Rs.1607.00
+            On HDFC Bank Card 1234
+            At policybaza@mairtel
+            by UPI 123466789012
+            On 01-06
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, rules, cats)
+
+        assertNotNull(txn)
+        assertEquals(1607.0, txn?.amount)
+        assertEquals(7L, txn?.categoryId)          // Investment, NOT Bills
+        assertEquals("Term Insurance", txn?.merchant)
+    }
+
+    @Test
+    fun testRuleKeywordDoesNotMatchHandleAloneEvenWithoutCompetingRule() {
+        // Even with ONLY the airtel rule present, "policybaza@mairtel" must not become Bills/Airtel.
+        val rules = listOf(CategoryRule(id = 1, keyword = "airtel", categoryId = 4L, label = "Airtel"))
+        val sms = "Txn Rs.500.00 On HDFC Bank Card 1234 At policybaza@mairtel by UPI 123"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)          // Others (rule did not match the handle)
+        assertEquals(false, txn?.merchant == "Airtel")
+    }
+
+    @Test
+    fun testRuleMatchesNameBeforeHandle() {
+        // The portion BEFORE "@" is still matchable: a rule keyed on it must still apply.
+        val rules = listOf(CategoryRule(id = 1, keyword = "q126589", categoryId = 2L, label = "MyShop"))
+        val sms = "Rs.300.00 debited to q126589@ybl on 05-Jun"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(2L, txn?.categoryId)
+        assertEquals("MyShop", txn?.merchant)
+    }
+
+    @Test
+    fun testRuleKeywordCreatedWithHandleIgnoresItsOwnSuffix() {
+        // A rule typed WITH an "@" (e.g. "policybaza@axis") must match on just "policybaza", so it
+        // applies regardless of which handle the actual transaction used.
+        val cats = testCategories + Category(id = 7, name = "Investment", iconName = "TrendingUp")
+        val rules = listOf(CategoryRule(id = 1, keyword = "policybaza@axis", categoryId = 7L, label = "Term Insurance"))
+        listOf(
+            "Rs.1607.00 debited to policybaza@mairtel via UPI",
+            "Rs.1607.00 debited to policybaza on 01-Jun"
+        ).forEach { sms ->
+            val txn = SmsParser.parseTransaction(sms, rules, cats)
+            assertNotNull(txn)
+            assertEquals(7L, txn?.categoryId)
+            assertEquals("Term Insurance", txn?.merchant)
+        }
+    }
+
+    @Test
+    fun testPureHandleKeywordMatchesNothing() {
+        // A keyword that is ONLY a handle ("@ybl") strips to empty and must not match everything.
+        val rules = listOf(CategoryRule(id = 1, keyword = "@ybl", categoryId = 4L, label = "Bills"))
+        val sms = "Rs.300.00 debited to someone@ybl on 05-Jun"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)          // Others — the empty keyword matched nothing
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)
