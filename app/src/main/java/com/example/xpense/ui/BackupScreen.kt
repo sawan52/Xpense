@@ -41,8 +41,9 @@ fun BackupScreen(viewModel: ExpenseViewModel) {
     val snackbarHostState = remember { SnackbarHostState() }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var confirmReplace by remember { mutableStateOf(false) }
-    // The Daily/Weekly/Monthly chooser is collapsible once auto-backup is on.
-    var freqExpanded by remember { mutableStateOf(true) }
+    // The Daily/Weekly/Monthly chooser is collapsible once auto-backup is on. It starts collapsed
+    // on every visit (this state is re-created when the screen is reopened) and only opens on tap.
+    var freqExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.refreshBackupState() }
 

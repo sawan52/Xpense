@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.ui.components.SparklineChart
-import com.example.xpense.ui.components.SpendingLineChart
+import com.example.xpense.ui.components.SpendingBarChart
 import com.example.xpense.ui.theme.*
 import com.example.xpense.ui.utils.CategoryUtils
 import com.example.xpense.ui.utils.CurrencyUtils
@@ -159,22 +159,11 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
         Spacer(Modifier.height(28.dp))
 
         // ── Spending activity ─────────────────────────────────────────────
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Spending Activity", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Box(
-                modifier = Modifier
-                    .background(DarkCard, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text("This Month ↓", color = TextSecondary, fontSize = 12.sp)
-            }
-        }
+        Text(
+            "Spending Activity",
+            color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
         Spacer(Modifier.height(12.dp))
         Box(
             modifier = Modifier
@@ -184,7 +173,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                 .background(DarkCard)
                 .padding(20.dp)
         ) {
-            SpendingLineChart(
+            SpendingBarChart(
                 data = lastSixMonths,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -255,28 +244,16 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(item.expense.merchant, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    "${item.category.name} • ${formatHomeDate(item.expense.date)}",
+                                    "${item.category.name} • ${formatCardDate(item.expense.date)}",
                                     color = TextMuted, fontSize = 12.sp
                                 )
                             }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
-                                    color = RedNegative,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                if (item.expense.rawSms != "Manual Entry") {
-                                    Box(
-                                        modifier = Modifier
-                                            .padding(top = 3.dp)
-                                            .background(DarkSurface, RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text("UPI", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
+                            Text(
+                                "-₹${CurrencyUtils.format(item.expense.amount, 2)}",
+                                color = RedNegative,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -286,6 +263,3 @@ fun SummaryScreen(viewModel: ExpenseViewModel, onAddExpense: () -> Unit) {
         Spacer(Modifier.height(100.dp))
     }
 }
-
-fun formatHomeDate(ts: Long): String =
-    SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(ts))

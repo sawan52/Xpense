@@ -350,7 +350,8 @@ private fun helpTopics(): List<HelpTopic> = listOf(
         Para("Your home screen is a quick snapshot of your money.")
         Bullet("Total Balance shows your overall spending. Tap the eye icon to hide or reveal the amount.")
         Bullet("The ▲/▼ figure compares this month with last month, and the mini graph shows the last 6 months.")
-        Bullet("Spending Activity charts your recent months, and your latest transactions appear below — tap View All to open Insights for the full, day-by-day list.")
+        Bullet("Spending Activity is a bar chart of your last 6 months — amounts run up the left, months along the bottom. It rolls forward automatically, so the current month is always the rightmost bar and the oldest drops off the left.")
+        Bullet("Your latest transactions appear below — tap View All to open Insights for the full, day-by-day list.")
         Bullet("Add an expense any time with the + button in the centre of the bottom bar.")
         MockBalanceCard()
     },
@@ -405,7 +406,7 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     HelpTopic("Backup & restore", Icons.Default.CloudUpload, CategoryTravelColor) {
         Para("Keep your data safe and move it between phones using Google Drive (Profile → Backup & Restore).")
         Bullet("Connect your Google account, then tap Back up now. The last backup time is shown.")
-        Bullet("Automatic backup keeps a copy fresh without you remembering. It's off by default — turn it on and choose Daily, Weekly, or Monthly, and Xpense backs up on its own around 2:00 AM. Tap the frequency row to collapse the choices once you've set it. Disconnecting Drive turns it back off.")
+        Bullet("Automatic backup keeps a copy fresh without you remembering. It's off by default — turn it on and choose Daily, Weekly, or Monthly, and Xpense backs up on its own around 2:00 AM. The Frequency chooser starts collapsed each time you open this screen; tap the Frequency row to reveal the options. Disconnecting Drive turns it back off.")
         Bullet("Restore offers two modes — Merge adds the backup to your current data (skipping duplicates), while Replace wipes this device first and restores exactly. Replace can't be undone.")
         Bullet("Drive sign-in may be limited to Google accounts the app owner has approved.")
     }

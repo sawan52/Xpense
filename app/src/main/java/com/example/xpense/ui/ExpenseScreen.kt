@@ -319,8 +319,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                             onClick = {
                                 expenseToEdit = item.expense
                                 showEditSheet = true
-                            },
-                            showTime = false
+                            }
                         )
                     }
                 }
@@ -508,10 +507,7 @@ fun DarkTransactionCard(
     isSelectionMode: Boolean,
     onToggle: () -> Unit,
     onLongClick: () -> Unit,
-    onClick: () -> Unit = {},
-    // When false the row shows the date without the time (used on the Insights list); the time is
-    // still visible when the transaction is opened in the edit sheet.
-    showTime: Boolean = true
+    onClick: () -> Unit = {}
 ) {
     val color = CategoryUtils.getCategoryColor(item.category)
     Box(
@@ -545,7 +541,7 @@ fun DarkTransactionCard(
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${item.category.name} • ${if (showTime) formatHomeDate(item.expense.date) else formatCardDate(item.expense.date)}",
+                    "${item.category.name} • ${formatCardDate(item.expense.date)}",
                     color = TextMuted, fontSize = 12.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
