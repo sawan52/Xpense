@@ -195,9 +195,10 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Re-runs the rule/keyword categorization over every SMS-derived transaction using the
-     * current rules and categories. Manually added/edited expenses are left untouched so the
-     * user's explicit choices are respected. Returns how many were moved to a new category.
+     * Re-runs the rule categorization over every SMS-derived transaction using the current rules
+     * and categories. A matching rule always wins (it sets the category and label), so a manual
+     * edit only stands while no rule matches the row. Manual ("Manual Entry"/"Manual Update") rows
+     * have no SMS to match and are skipped. Returns how many rows changed. See [reapplyDecision].
      */
     private suspend fun reapplyRules(): Int {
         val rules = ruleDao.getAllRulesList()
@@ -206,17 +207,18 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         var changed = 0
         expenseDao.getAllExpensesList().forEach { exp ->
             if (exp.rawSms == "Manual Entry" || exp.rawSms == "Manual Update") return@forEach
-            // Respect a user's manual category choice and never auto-revert it.
-            if (exp.categoryLocked) return@forEach
             val result = SmsParser.categorizationFor(exp.rawSms, rules, categories)
-            // Only an actual user rule may re-categorize a row; the keyword fallback (which would
-            // demote unmatched rows to "Others") must not overwrite an existing category.
-            if (!result.fromRule) return@forEach
-            val newCategoryId = if (result.categoryId != 0L) result.categoryId else exp.categoryId
-            // A rule label refreshes the display name too; otherwise keep the existing merchant.
-            val newMerchant = result.label?.takeIf { it.isNotBlank() } ?: exp.merchant
-            if (newCategoryId != exp.categoryId || newMerchant != exp.merchant) {
-                expenseDao.updateExpenseCategoryAndMerchant(exp.id, newCategoryId, newMerchant)
+            val decision = reapplyDecision(
+                currentCategoryId = exp.categoryId,
+                currentMerchant = exp.merchant,
+                userPinned = exp.categoryLocked,
+                fromRule = result.fromRule,
+                ruleCategoryId = result.categoryId,
+                ruleLabel = result.label,
+                reextractedMerchant = SmsParser.extractMerchantFor(exp.rawSms)
+            )
+            if (decision.categoryId != exp.categoryId || decision.merchant != exp.merchant) {
+                expenseDao.updateExpenseCategoryAndMerchant(exp.id, decision.categoryId, decision.merchant)
                 changed++
             }
         }
@@ -388,11 +390,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     fun requestRulePrefill(keyword: String) { _pendingRuleKeyword.value = keyword }
     fun clearRulePrefill() { _pendingRuleKeyword.value = null }
 
-    /** Posts a sample notification so the user can verify the alert + tap-to-create-rule flow. */
-    fun sendTestNotification() {
-        TransactionNotifier.sendTest(getApplication())
-    }
-
     // ── In-app Notifications inbox ───────────────────────────────────────────
     // Durable record of uncategorized-transaction alerts. An item is shown only while its linked
     // expense is still uncategorized (in Others, not locked); once a rule or a manual edit moves it
@@ -481,11 +478,13 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             // Update only the editable columns; rawSms + dedupKey must survive so resync still
             // recognises an edited SMS row and skips it instead of inserting a duplicate.
-            // Lock the category once the user changes it (and keep it locked thereafter) so rule
-            // re-application never reverts a manual choice.
+            //
+            // Pin the row (categoryLocked) — so rule re-application never overrides this edit — ONLY
+            // when a rule ALREADY matches it. Editing a still-rule-less transaction leaves it
+            // unpinned, so a rule created later can still apply to it. Once pinned, it stays pinned.
             val existing = expenseDao.getExpenseById(id)
-            val locked = existing?.categoryLocked == true || (existing != null && existing.categoryId != categoryId)
-            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note, locked)
+            val pinned = existing?.categoryLocked == true || (existing != null && hasUserRuleFor(existing))
+            expenseDao.updateExpenseFields(id, amount, merchant, categoryId, date, note, pinned)
         }
     }
 
@@ -646,6 +645,50 @@ fun visibleNotifications(
         val e = byId[n.expenseId]
         e != null && e.categoryId == othersId && !e.categoryLocked
     }
+}
+
+/** A merchant with no letters (phone/ref number), blank, or the literal "Unknown" placeholder
+ *  carries no usable identity — such rows are eligible for re-extraction repair. */
+fun isUselessMerchantName(name: String): Boolean =
+    name.isBlank() || name.equals("Unknown", ignoreCase = true) || name.none { it.isLetter() }
+
+/** Resolved category + display name for one row during rule re-application. */
+data class ReapplyDecision(val categoryId: Long, val merchant: String)
+
+/**
+ * Pure decision for re-applying rules to a single SMS-derived row (no DB/IO so it is unit-testable).
+ *
+ * Priority: rule > manual edit > default — BUT a manual edit made *after* a rule already existed
+ * wins and is never overridden. That intent is carried by [userPinned] (the `categoryLocked` flag),
+ * which the edit path sets only when a rule already matched the row at edit time.
+ *
+ * - [userPinned] → the row is returned untouched: the user deliberately customised a transaction the
+ *   rule had already handled, so neither category nor name is changed.
+ * - Otherwise category: a real user rule ([fromRule]) sets it; else the current category is kept (the
+ *   built-in keyword fallback, fromRule = false, must never demote an unmatched row to "Others", and
+ *   a manual category on a still-rule-less row is preserved so a rule created later can still apply).
+ * - Otherwise merchant: a matching rule's label names the row; else a useless stored merchant (older
+ *   imports saved as "Unknown" or a phone/ref number) is repaired from [reextractedMerchant]; else
+ *   the existing name is kept.
+ */
+fun reapplyDecision(
+    currentCategoryId: Long,
+    currentMerchant: String,
+    userPinned: Boolean,
+    fromRule: Boolean,
+    ruleCategoryId: Long,
+    ruleLabel: String?,
+    reextractedMerchant: String
+): ReapplyDecision {
+    if (userPinned) return ReapplyDecision(currentCategoryId, currentMerchant)
+    val newCategoryId = if (fromRule && ruleCategoryId != 0L) ruleCategoryId else currentCategoryId
+    val newMerchant = when {
+        fromRule && !ruleLabel.isNullOrBlank() -> ruleLabel!!
+        isUselessMerchantName(currentMerchant) ->
+            reextractedMerchant.takeIf { !isUselessMerchantName(it) } ?: currentMerchant
+        else -> currentMerchant
+    }
+    return ReapplyDecision(newCategoryId, newMerchant)
 }
 
 /** Normalized form of a rule label used for grouping: blank/null collapse to null. */

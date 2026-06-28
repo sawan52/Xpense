@@ -67,13 +67,6 @@ fun NotificationsScreen(viewModel: ExpenseViewModel) {
                         containerColor = DarkSurface
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Send test notification", color = TextPrimary) },
-                            onClick = {
-                                menuExpanded = false
-                                viewModel.sendTestNotification()
-                            }
-                        )
-                        DropdownMenuItem(
                             text = { Text("Clear all", color = if (notifications.isEmpty()) TextMuted else RedNegative) },
                             enabled = notifications.isNotEmpty(),
                             onClick = {

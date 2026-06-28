@@ -4,6 +4,33 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [2.8] - 2026-06-28
+
+### Changed
+- **A matching rule now always takes priority over a manual edit.** Previously, manually changing a
+  transaction's category "locked" it so rules could never touch it again — so a rule you created
+  afterwards (and "Re-apply rules") appeared to do nothing for that transaction. Now the priority is
+  simply: **rule → manual edit → default**. A manual edit stands only while no rule matches; as soon
+  as a matching rule exists, it sets the category and shows its label (e.g. "Groww", "Lulu Mall",
+  "Auto"). Manual edits to rule-less transactions are still kept.
+
+### Removed
+- The **Send test notification** option from Profile → Notifications.
+
+### Fixed
+- Auto-debit / AutoPay **reminder** SMS ("INR 299 for Google Play will be auto debited … by
+  28-06-26") are no longer tracked as expenses. They announce a *future* charge; the actual debit
+  is recorded later from its own SMS. Previously both were counted, double-counting the amount.
+- Card transaction alerts (e.g. Axis) that name the merchant on its own line no longer save a phone
+  number as the merchant. The parser was grabbing the "SMS BLOCK … to \<number>" fraud-report
+  number; it now ignores all-digit candidates and reads the merchant line above "Avl Limit"
+  (including aggregator names like `PTM*FLIPKAR`). This also means **creating a rule** from such a
+  transaction now prefills the real merchant instead of a useless number.
+- **Re-apply rules** now also repairs mis-extracted merchant names on already-imported
+  transactions (those previously stored as a number or "Unknown"), so older card transactions get
+  their real merchant back. Good names, manually-edited categories, and manual entries are left
+  untouched.
+
 ## [2.7] - 2026-06-28
 
 ### Changed

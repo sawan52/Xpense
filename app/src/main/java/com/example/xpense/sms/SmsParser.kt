@@ -65,6 +65,21 @@ object SmsParser {
         ")"
     )
 
+    // Auto-debit / e-mandate / AutoPay REMINDERS announce a FUTURE debit that hasn't happened yet
+    // ("INR 299 for Google Play will be auto debited ... by 28-06-26", "amount is due to be debited
+    // on ..."). They carry a debit verb but no money has moved — the actual debit arrives as its own
+    // SMS later (and IS recorded). Skipping the reminder avoids double-counting a charge, and avoids
+    // counting one that might not even go through. Keyed on FUTURE-tense phrasing so completed
+    // debits ("Rs X debited", "Spent INR X") are never affected.
+    private val UPCOMING_DEBIT_PATTERN = Pattern.compile(
+        "(?i)(" +
+            "will\\s+be\\s+(auto[\\s-]?)?(debited|deducted|charged)" +              // "will be auto debited"
+            "|(is|are)\\s+(due|scheduled)\\s+to\\s+be\\s+(debited|deducted|charged)" + // "is due to be debited"
+            "|(debit|payment|amount)\\s+(is\\s+)?(due|scheduled)\\s+(on|for|by)\\b" +  // "payment is due on"
+            "|to\\s+process\\s+the\\s+auto[\\s-]?debit" +                           // AutoPay reminder boilerplate
+        ")"
+    )
+
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
@@ -75,6 +90,17 @@ object SmsParser {
     // has no word boundary before "bank", so it is NOT rejected — only standalone words are.
     private val BANK_PHRASE_PATTERN = Pattern.compile(
         "(?i)\\b(your|account|bank)\\b"
+    )
+
+    // Card spend alerts (e.g. Axis) name the merchant on its OWN line, with no "at/to" preposition,
+    // immediately above the available-limit line:
+    //     Spent INR 299 ... \n GOOGLEPLAY \n Avl Limit: INR 123456
+    // The merchant is the line directly before "Avl Limit"/"Avl Lmt". Restricted to the credit-card
+    // "Avl Limit" wording so it never fires on NACH/UPI "Avl Bal" lines (those are single-line and
+    // have no merchant above them).
+    // '*' is allowed because aggregator merchants arrive prefixed (e.g. "PTM*FLIPKAR", "RAZ*SHRI RA").
+    private val CARD_MERCHANT_PATTERN = Pattern.compile(
+        "(?im)^\\s*([A-Za-z][A-Za-z0-9 .&'/*\\-]{1,40}?)\\s*\\r?\\n\\s*Avl\\s*(?:Limit|Lmt)\\b"
     )
 
     fun parseTransaction(
@@ -101,6 +127,13 @@ object SmsParser {
         // SMS; "purchase request ... processed" would otherwise trip the debit check below.
         if (INVESTMENT_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (investment confirmation): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Auto-debit/AutoPay reminders announce a FUTURE charge; the real debit is recorded later
+        // from its own SMS. Skip the reminder so the same charge isn't counted twice.
+        if (UPCOMING_DEBIT_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (upcoming auto-debit reminder): ${smsBody.take(80)}")
             return null
         }
 
@@ -160,6 +193,12 @@ object SmsParser {
         categories: List<Category>
     ): Categorization = categorize(extractMerchant(smsBody), smsBody, rules, categories)
 
+    /**
+     * Public merchant extraction, used to repair already-imported rows whose merchant was stored
+     * by an older/weaker extractor (e.g. an Axis card SMS that captured the block phone number).
+     */
+    fun extractMerchantFor(smsBody: String): String = extractMerchant(smsBody)
+
     /** Convenience accessor kept for callers that only need the category id. */
     fun categorizeFor(
         smsBody: String,
@@ -187,12 +226,28 @@ object SmsParser {
                     raw.take(25)
                 }
                 if (candidate.isEmpty()) continue
+                // A merchant name always contains a letter; reject phone/reference numbers such as
+                // the "...SMS BLOCK 1234 to 9999999999" fraud-report line that a bare "to <number>"
+                // would otherwise grab when the real merchant carries no at/to/for preposition.
+                if (candidate.none { it.isLetter() }) continue
                 // Reject if it looks like a bank/account phrase (but not a VPA bank-handle suffix).
                 if (BANK_PHRASE_PATTERN.matcher(candidate).find()) continue
                 return candidate
             }
         }
+        // Fallback: card alerts (Axis) that name the merchant on its own line above "Avl Limit".
+        merchantBeforeLimitLine(smsBody)?.let { return it }
         return "Unknown"
+    }
+
+    /** Merchant from the line directly above an "Avl Limit/Lmt" line (Axis-style card alerts). */
+    private fun merchantBeforeLimitLine(smsBody: String): String? {
+        val m = CARD_MERCHANT_PATTERN.matcher(smsBody)
+        if (!m.find()) return null
+        val candidate = m.group(1)?.trim()?.take(25) ?: return null
+        if (candidate.none { it.isLetter() }) return null
+        if (BANK_PHRASE_PATTERN.matcher(candidate).find()) return null
+        return candidate
     }
 
     private fun categorize(

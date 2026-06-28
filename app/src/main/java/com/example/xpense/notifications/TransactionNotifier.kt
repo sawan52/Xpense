@@ -37,23 +37,6 @@ object TransactionNotifier {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_NOTIFICATIONS_ENABLED, true)
 
-    /**
-     * Fires a sample notification so the user can verify the look and the tap-to-create-rule flow
-     * without waiting for a real uncategorized SMS. Bypasses the in-app toggle (the point is to
-     * test) but still honours the OS permission, surfacing a hint if it's missing.
-     */
-    fun sendTest(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            Toast.makeText(context, "Allow notifications for Xpense in system settings first", Toast.LENGTH_LONG).show()
-            return
-        }
-        notify(context, "Test Merchant", 199.0, ignoreToggle = true)
-        Toast.makeText(context, "Test notification sent — check your notification panel", Toast.LENGTH_SHORT).show()
-    }
-
     fun notify(context: Context, merchant: String, amount: Double, ignoreToggle: Boolean = false) {
         if (!ignoreToggle && !isEnabled(context)) return
         // API 33+ gates notifications behind a runtime permission; without it posting is a no-op.

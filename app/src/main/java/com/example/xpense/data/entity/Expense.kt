@@ -26,7 +26,10 @@ data class Expense(
     val ignored: Boolean = false,
     // Optional free-text note the user attaches when editing/adding a transaction. Null = no note.
     val note: String? = null,
-    // Set when the user manually changes the category via the edit sheet. Rule re-application
-    // (reapplyRules) skips locked rows so a user's explicit category choice is never overwritten.
+    // "User-pinned": set when the user edits this transaction AND a rule already matched it at that
+    // time. Such a row is the user's deliberate override of an already-applied rule, so rule
+    // re-application leaves it untouched (rule > manual edit, EXCEPT a manual edit made after a rule
+    // existed wins). Editing a still-rule-less row does NOT pin it, so a rule created later can still
+    // apply. Also dismisses the "uncategorized" notification. See reapplyDecision / updateExpense.
     val categoryLocked: Boolean = false
 )

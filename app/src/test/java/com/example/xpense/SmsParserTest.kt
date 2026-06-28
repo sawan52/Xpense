@@ -419,6 +419,87 @@ class SmsParserTest {
     }
 
     @Test
+    fun testAxisCardMerchantOnOwnLine() {
+        // Axis card alert: the merchant sits on its own line above "Avl Limit", with no at/to
+        // preposition. The bare "to 9999999999" in the fraud-report line must NOT be grabbed as
+        // the merchant; the real merchant (GOOGLEPLAY) must be extracted instead.
+        val sms = """
+            Spent INR 299
+            Axis Bank Card no. XX1234
+            28-06-26 08:20:36 IST
+            GOOGLEPLAY
+            Avl Limit: INR 123456
+            Not you? SMS BLOCK 1234 to 9999999999
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(299.0, txn?.amount)
+        assertEquals("GOOGLEPLAY", txn?.merchant)
+    }
+
+    @Test
+    fun testAxisCardAggregatorMerchantExtracted() {
+        // Aggregator merchants arrive prefixed (PTM* = Paytm, RAZ* = Razorpay) on their own line.
+        // The '*' must be kept and the block phone number must not be grabbed instead.
+        val sms = """
+            Spent INR 260
+            Axis Bank Card no. XX3768
+            09-05-26 11:21:46 IST
+            PTM*FLIPKAR
+            Avl Limit: INR 95000
+            Not you? SMS BLOCK 3768 to 919951860002
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals("PTM*FLIPKAR", txn?.merchant)
+    }
+
+    @Test
+    fun testPhoneNumberNotUsedAsMerchant() {
+        // A debit whose only "to <x>" is the fraud-report phone number falls back to Unknown,
+        // never the phone number itself.
+        val sms = """
+            Spent INR 150
+            HDFC Bank Card XX9999
+            Not you? SMS BLOCK to 9876543210
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals("Unknown", txn?.merchant)
+    }
+
+    @Test
+    fun testAutoDebitReminderIgnored() {
+        // A future auto-debit / AutoPay reminder must NOT be tracked — the actual debit arrives as
+        // its own SMS later. (Real format from an Axis Credit Card Google Play AutoPay reminder.)
+        val sms = "INR 299.00 for Google Play will be auto debited via Axis Bank Credit Card no. " +
+            "XX3768 by 28-06-26. Please maintain sufficient limit on the card to process the auto " +
+            "debit. To deactivate AutoPay facility for ID XShjgwt3ZT, click https://ccm.ax"
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testActualCardDebitStillParsedNotReminder() {
+        // The real debit for the same mandate (present tense "Spent") must still be recorded.
+        val sms = """
+            Spent INR 299
+            Axis Bank Card no. XX3768
+            28-06-26 08:20:36 IST
+            GOOGLEPLAY
+            Avl Limit: INR 154392.4
+            Not you? SMS BLOCK 3768 to 919951860002
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(299.0, txn?.amount)
+        assertEquals("GOOGLEPLAY", txn?.merchant)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)
