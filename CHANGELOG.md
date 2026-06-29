@@ -38,6 +38,9 @@ All notable changes to Xpense are documented here. The format is based on
   Groc credited") now record the real merchant instead of capturing the amount text.
 - In multi-select, a selected transaction no longer shows the swipe **Archive** button bleeding
   through its highlighted card — the swipe action is hidden unless you're actually swiping a row.
+- **HDFC card "Spent" alerts** that prefix the merchant with punctuation (e.g. "… At ..SUDHA SILK
+  AND S_ On …") now record the real merchant instead of "Unknown". The parser skips the leading
+  punctuation noise after at/to/for before reading the name.
 
 ### Removed
 - The standalone **History** screen and bottom-nav tab (its day-grouped list now lives on Insights).
