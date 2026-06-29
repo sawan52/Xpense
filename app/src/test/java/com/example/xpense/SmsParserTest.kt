@@ -632,6 +632,54 @@ class SmsParserTest {
     }
 
     @Test
+    fun testBobAccountingDebitParsed() {
+        // Bank of Baroda UPI debit: no debit verb, direction marked "Dr. from A/C ... Cr. to <payee>".
+        // "Dr. from A/C" = user's own account debited, so it must be recorded as a spend.
+        val sms = "Rs.587.00 Dr. from A/C XXXXXX8394 and Cr. to delhiverylimited1.rzp@hdfcbank. " +
+            "Ref:611513848902. AvlBal:Rs149.57(2026:04:25 01:04:26). Not you? Call 18005700/5000-BOB"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(587.0, txn?.amount)               // the debited amount, not the AvlBal
+        assertEquals(5L, txn?.categoryId)              // Others (no rule/keyword)
+        assertEquals(true, txn?.merchant?.startsWith("delhiverylimited"))
+    }
+
+    @Test
+    fun testBobIncomingCreditNotTreatedAsDebit() {
+        // Mirror-image incoming credit: user's account is on the "Cr. to A/C" side and "Dr. from"
+        // is followed by the payer's VPA, not "A/C". Must NOT be recorded as a spend.
+        val sms = "Rs.500.00 Cr. to A/C XXXXXX8394 and Dr. from someone@okaxis. Ref:611513848999. " +
+            "AvlBal:Rs649.57(2026:04:25 01:04:26). Not you? Call 18005700/5000-BOB"
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testSbiBareAmountDebitParsed() {
+        // SBI UPI debit states the amount with no currency token ("debited by 1000.00"); the
+        // fallback amount extractor must pick it up and the payee name must drop the "Refno" tail.
+        val sms = "Dear UPI user A/C X9688 debited by 1000.00 on date 20Jun26 trf to SHRUTIKIRTI " +
+            "SING Refno 617138114398 If not u? call-1800111109 for other services-18001234-SBI"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1000.0, txn?.amount)
+        assertEquals(5L, txn?.categoryId)              // Others
+        assertEquals("SHRUTIKIRTI SING", txn?.merchant) // "Refno 617138114398" trimmed off
+    }
+
+    @Test
+    fun testSbiBareAmountDebitSmallValueParsed() {
+        val sms = "Dear UPI user A/C X9688 debited by 20.00 on date 04Jun26 trf to ANURAG PANDEY " +
+            "Refno 615535240144 If not u? call-1800111109 for other services-18001234-SBI"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(20.0, txn?.amount)
+        assertEquals("ANURAG PANDEY", txn?.merchant)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

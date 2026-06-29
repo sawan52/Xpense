@@ -13,6 +13,12 @@ object SmsParser {
     // drop the trailing ref, so the saved name reads "John Doe via UPI" instead of the noisy tail.
     private const val VIA_UPI_MARKER = "via UPI"
 
+    // A merchant/payee name is sometimes captured with the trailing txn reference attached
+    // ("SHRUTIKIRTI SING Refno 617138114398", "NAME Ref:123") because the capture char class
+    // doesn't stop at a space. Cut the name at the first " Ref"/"Refno"/"Reference" token. No
+    // genuine merchant name in our data begins a word with "Ref", so clean names are unaffected.
+    private val REF_TAIL_PATTERN = Regex("(?i)\\s+Ref(no|erence)?\\b")
+
     // Only reject definitive OTP/security messages — NOT "code" standalone (breaks UPI ref codes)
     private val SPAM_PATTERN = Pattern.compile(
         "(?i)\\b(OTP|one.time.password|verification code|login code|login otp|secret pin|entered wrong pin)\\b"
@@ -28,6 +34,15 @@ object SmsParser {
     // Treated as a spend UNLESS a credit keyword is present (see CREDIT_PATTERN below).
     private val TXN_PATTERN = Pattern.compile(
         "(?i)\\b(txn|transaction)\\b"
+    )
+
+    // Bank of Baroda (and similar) UPI alerts carry NO debit verb; they mark direction with the
+    // "Dr."/"Cr." accounting shorthand: "Rs.X Dr. from A/C XXXX and Cr. to <payee>". "Dr. from
+    // A/C" means the user's OWN account was debited — a genuine spend. The mirror-image incoming
+    // credit reads "Cr. to A/C XXXX and Dr. from <payer-vpa>", where "Dr." is followed by the
+    // payer's VPA, NOT "A/C", so this pattern stays clear of credits and never records money in.
+    private val ACCOUNTING_DEBIT_PATTERN = Pattern.compile(
+        "(?i)\\bdr\\.?\\s+from\\s+a/?c\\b"
     )
 
     // Credit-only keywords — used to reject credits/refunds that lack an explicit debit verb
@@ -83,6 +98,14 @@ object SmsParser {
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
+    )
+
+    // Some banks (e.g. SBI UPI alerts) state a bare amount with NO currency token:
+    // "debited by 1000.00 on date ...". Tried ONLY as a fallback when the currency-prefixed
+    // pattern above finds nothing, so existing Rs/INR/Amt extraction is completely unaffected.
+    // Anchored to "debited by <amount>" so it never grabs a stray reference/phone number.
+    private val DEBITED_BY_AMOUNT_PATTERN = Pattern.compile(
+        "(?i)debited\\s+by\\s+([\\d,]+\\.?\\d{0,2})"
     )
 
     // Rejects bank/account *phrases* the at/to/for capture can grab ("transferred to your account",
@@ -145,7 +168,8 @@ object SmsParser {
             return null
         }
 
-        val hasDebit = DEBIT_PATTERN.matcher(lowerBody).find()
+        val hasDebit = DEBIT_PATTERN.matcher(lowerBody).find() ||
+            ACCOUNTING_DEBIT_PATTERN.matcher(lowerBody).find()
         val hasTxn = TXN_PATTERN.matcher(lowerBody).find()
         if (!hasDebit && !hasTxn) {
             Log.d(TAG, "SKIP (no debit/txn keyword): ${smsBody.take(80)}")
@@ -162,8 +186,12 @@ object SmsParser {
             return null
         }
 
-        val amountMatcher = AMOUNT_PATTERN.matcher(smsBody)
-        if (!amountMatcher.find()) {
+        // Primary extraction needs a currency token (Rs/INR/Amt). Fall back to the bare
+        // "debited by <amount>" phrasing only when that finds nothing, so currency-prefixed
+        // SMS keep matching exactly as before.
+        val amountMatcher = AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
+            ?: DEBITED_BY_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
+        if (amountMatcher == null) {
             Log.d(TAG, "SKIP (no amount): ${smsBody.take(80)}")
             return null
         }
@@ -245,7 +273,10 @@ object SmsParser {
                 val candidate = if (viaIdx >= 0) {
                     raw.substring(0, viaIdx + VIA_UPI_MARKER.length).trim()
                 } else {
-                    raw.take(25)
+                    // Drop a trailing reference tail the capture pulls in when the payee name
+                    // runs straight into the txn reference with no delimiter the class stops at
+                    // (SBI: "SHRUTIKIRTI SING Refno 617138114398" -> "SHRUTIKIRTI SING").
+                    raw.split(REF_TAIL_PATTERN).first().trim().take(25)
                 }
                 if (candidate.isEmpty()) continue
                 // The "<verb> for Rs <amount>" phrasing makes the at/to/for capture grab the amount
