@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +34,15 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
     // Stats reflect actual spending, so ignored rows (self-transfers etc.) are left out.
     val countedExpenses = allExpenses.filter { !it.expense.ignored }
     val totalAmount = countedExpenses.sumOf { it.expense.amount }
+
+    // Read the real version from the installed package so the displayed value can never drift from
+    // versionName in build.gradle.kts the way a hardcoded string did.
+    val context = LocalContext.current
+    val appVersion = remember {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: ""
+    }
 
     Column(
         modifier = Modifier
@@ -166,7 +176,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                 icon = Icons.Default.Info,
                 iconColor = CategoryBillsColor,
                 title = "App Version",
-                subtitle = "3.0",
+                subtitle = appVersion,
                 onClick = {},
                 showArrow = false
             )
