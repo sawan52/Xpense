@@ -606,6 +606,32 @@ class SmsParserTest {
     }
 
     @Test
+    fun testHdfcCardMerchantWithLeadingDotNoiseExtracted() {
+        // HDFC card "Spent" alert prefixes the merchant with ".." noise after "At ", which the
+        // primary at/to/for capture can't read (it requires an alphanumeric first char). The real
+        // merchant must still be extracted, not lost to "Unknown", and the all-digit SMS-BLOCK
+        // number must never be grabbed instead.
+        val sms = "Spent Rs.90000 From HDFC Bank Card x4437 At ..SUDHA SILK AND S_ On " +
+            "2026-01-24:20:30:09 Bal Rs.73283.27 Not You? Call 18002586161/SMS BLOCK DC 4437 to 7308080808"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(90000.0, txn?.amount)            // first Rs amount, not the trailing Bal
+        assertEquals("SUDHA SILK AND S", txn?.merchant) // leading ".." skipped, trailing "_" dropped
+    }
+
+    @Test
+    fun testCleanAtMerchantUnaffectedByNoiseFallback() {
+        // Sanity: a clean "at <merchant>" with no punctuation noise is still handled by the primary
+        // pattern exactly as before (the new noise-skipping fallback must not interfere).
+        val sms = "Rs.50.00 debited at Starbucks Coffee"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals("Starbucks Coffee", txn?.merchant)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

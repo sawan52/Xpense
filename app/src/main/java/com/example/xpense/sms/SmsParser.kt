@@ -224,7 +224,16 @@ object SmsParser {
             // on 27-Jun-26; Amazon Pay Groc credited." — with no at/to/for preposition. Reached only
             // on confirmed debits, so the "credited" party is the beneficiary/payee (genuine incoming
             // credits carry no debit verb and are already rejected before extraction).
-            Pattern.compile("(?i)([A-Za-z][A-Za-z0-9 .&'/@*\\-]{1,40}?)\\s+credited\\b")
+            Pattern.compile("(?i)([A-Za-z][A-Za-z0-9 .&'/@*\\-]{1,40}?)\\s+credited\\b"),
+            // HDFC card "Spent" alerts prefix the merchant with punctuation noise:
+            // "... At ..SUDHA SILK AND S_ On 2026-...". The primary at/to/for pattern requires the
+            // name to start with an alphanumeric right after the keyword, so the leading ".." makes
+            // it miss the merchant and fall back to "Unknown". This variant skips leading
+            // punctuation/space noise after at/to/for before reading the name. It requires at least
+            // one noise char ([.*_-]) so it ONLY targets the prefixed case and never overlaps the
+            // clean "at Swiggy" handling above. Listed LAST so it runs only when the stricter
+            // patterns found nothing valid, leaving every existing extraction untouched.
+            Pattern.compile("(?i)(?:at|to|for)\\s+[.*_\\-]+\\s*([A-Za-z][A-Za-z0-9 .&'/@*\\-]{2,})")
         )
         for (p in patterns) {
             val m = p.matcher(smsBody)
