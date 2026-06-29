@@ -4,6 +4,14 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [3.1] - 2026-06-29
+
+### Changed
+- **Wider device support.** The minimum supported Android version is now **Android 10 (API 29)**,
+  down from Android 13 (API 33), so the app installs on older phones. All version-gated features
+  degrade gracefully: the notification runtime-permission prompt (Android 13+) is simply skipped on
+  older releases, where notifications post without it.
+
 ## [3.0] - 2026-06-29
 
 ### Added
