@@ -96,6 +96,24 @@ object SmsParser {
         ")"
     )
 
+    // Premium / bill payment REMINDERS and mandate registrations. They quote what you OWE, not what
+    // was taken — the real debit arrives later as its own SMS and is recorded then. Left unchecked
+    // an insurance renewal notice became a ₹1,607 expense every month.
+    //
+    // These messages contain no debit verb of their own; what made them parse was the sign-off
+    // "Ignore if paid", whose "paid" is the sole DEBIT_PATTERN hit in an otherwise reminder-only
+    // text. Each alternative below is phrasing a completed-debit SMS never uses, so genuine premium
+    // debits ("payment of Rs.1607 … has been successfully debited", "Rs.1607 debited A/c…") are
+    // unaffected.
+    private val PAYMENT_REMINDER_PATTERN = Pattern.compile(
+        "(?i)(" +
+            "ignore\\s+if\\s+(already\\s+)?paid" +              // "…to pay now. Ignore if paid."
+            "|\\bpay\\s+(your\\s+)?premium\\b" +                // "pay premium of Rs. 1607 online"
+            "|\\bpay\\s+by\\s+\\d" +                            // "is due. Pay by 21-Sep-2026"
+            "|will\\s+be\\s+applied\\s+to\\s+your\\s+policy" +  // registered, not yet debited
+        ")"
+    )
+
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
         "(?i)(?:Rs\\.?|INR|Amt)\\s?([\\d,]+\\.?\\d{0,2})"
@@ -166,6 +184,13 @@ object SmsParser {
         // from its own SMS. Skip the reminder so the same charge isn't counted twice.
         if (UPCOMING_DEBIT_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (upcoming auto-debit reminder): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Premium/bill reminders quote what is owed, not what was taken; the real debit is its own
+        // SMS later. Skipped before the debit check because "Ignore if paid" reads as a debit verb.
+        if (PAYMENT_REMINDER_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (payment reminder): ${smsBody.take(80)}")
             return null
         }
 

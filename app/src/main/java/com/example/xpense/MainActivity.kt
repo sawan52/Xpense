@@ -141,6 +141,7 @@ class MainActivity : ComponentActivity() {
                                 Screen.INSIGHTS_DETAIL -> InsightsDetailScreen(viewModel)
                                 Screen.PROFILE        -> ProfileScreen(viewModel)
                                 Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
+                                Screen.RULE_DETAIL    -> RuleDetailScreen(viewModel)
                                 Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
                                 Screen.BACKUP         -> BackupScreen(viewModel)
                                 Screen.NOTIFICATIONS  -> NotificationsScreen(viewModel)

@@ -4,6 +4,36 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [3.3] - 2026-09-16
+
+### Added
+- **Auto-rules are grouped by category.** The Auto-Rules tab now opens as a short list of category
+  sections you expand, instead of one long list. Each rule shows its display name and how many
+  keywords it has — never the raw keyword text, which for a 56-keyword rule used to render taller
+  than the whole screen and pushed the rule's own name out of view.
+- **A screen for each rule's keywords.** Tap a rule to see its keywords one per line. Tap one to
+  edit it in place, or use **+ Add keyword**. The ⋮ menu renames the rule, moves it to another
+  category, or deletes it.
+- **Deleting keywords is now press-and-hold.** Long-press a keyword to start selecting, tick as
+  many as you want, then tap the bin in the top bar; **Select all** toggles the whole list. There is
+  no longer a delete button on each row, so a mis-tap can't remove a keyword. Deleting every
+  keyword offers to delete the rule instead of leaving one that can never match.
+
+### Fixed
+- **Insurance premium reminders are no longer recorded as spending.** A renewal notice ("Premium of
+  Rs. 1607 … is due. Pay by 21-Sep-2026 … Ignore if paid.") was being saved as an expense every
+  month. Nothing has been paid — the message says what is *owed*, and the actual debit arrives later
+  as its own SMS, which is still recorded as normal. The same applies to "pay premium … online" and
+  to mandates that have been registered but not yet applied.
+- **"Re-apply rules" no longer freezes the screen.** It ran its matching on the UI thread and
+  re-parsed every rule's keywords once per transaction, so it locked the app for a second or two and
+  would have got steadily worse as transactions piled up. It now runs in the background and is about
+  four times faster.
+- The **Categories** screen remembers which sub-tab you were on. Opening a rule and coming back no
+  longer drops you on the Categories tab, and a rotation no longer clears your search.
+- **Back** on the Auto-Rules tab now returns to the Categories tab before leaving the screen, and
+  closes the rule search first if it is open.
+
 ## [3.2] - 2026-09-16
 
 ### Fixed

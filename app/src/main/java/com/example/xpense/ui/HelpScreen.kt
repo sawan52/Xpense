@@ -378,15 +378,19 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     HelpTopic("Categories & auto-rules", Icons.Default.Category, CategoryShoppingColor) {
         Para("Categories group your spending; auto-rules decide which category a transaction lands in. Open them from the Categories tab in the bottom bar, which has Categories and Auto-Rules sub-tabs.")
         Bullet("Add, rename, or delete categories. “Others” can't be deleted — if you delete a category, its transactions and rules move to Others.")
-        Bullet("A rule maps keywords to a category. In the keyword box: a comma means all those words must appear, and a “|” separates alternatives.")
-        Bullet("Example: “swiggy | zomato” sends either to Food. You can also set a display name (e.g. “MF SIP”).")
+        Bullet("On the Auto-Rules tab your rules are grouped under their category. Tap a category to open or close it; each rule shows its name and how many keywords it holds.")
+        Bullet("Tap a rule to see its keywords, one per line. Tap a keyword to edit it, or use + Add keyword at the top to add one.")
+        Bullet("To delete keywords, press and hold one. Tick as many as you like, then tap the bin in the top bar — Select all is there too. Deleting every keyword deletes the rule.")
+        Bullet("The ⋮ menu on a rule lets you rename it, move it to another category, or delete the whole rule.")
+        Bullet("A keyword of four letters or more also matches inside a longer word, so “zomato” still catches “paytmpayzomato”. Shorter ones must start a word, so “ola” can't hijack “Cholas”.")
         Bullet("Rules ignore everything after “@” in a UPI id (the bank/app handle like @ybl or @okhdfc), so your keyword matches the merchant — not the handle.")
+        Bullet("Within one keyword, a comma means every word must appear — “nach, groww invest” only matches when both are present.")
         Bullet("Re-apply rules updates existing transactions; Merge duplicate rules combines rules that share a category and label into one.")
         MockRuleChip()
     },
     HelpTopic("Automatic SMS tracking", Icons.Default.Sms, CategoryBillsColor) {
         Para("Xpense reads incoming bank SMS and records your spending without any typing.")
-        Bullet("It captures debits/payments, and intelligently skips OTPs, credits & refunds, credit-card bill payments, and mutual-fund confirmations, so nothing is double-counted.")
+        Bullet("It captures debits/payments, and intelligently skips OTPs, credits & refunds, credit-card bill payments, mutual-fund confirmations, and payment reminders such as an insurance premium that is merely due — so nothing is double-counted.")
         Bullet("Duplicate messages are ignored automatically.")
         Bullet("Use Sync SMS History (Profile) to import the last 6 months in one go.")
         Bullet("If you change a transaction's category by hand, your choice is kept. A matching auto-rule takes priority though — and you can snap a transaction back to its rule any time with the “Force auto rule” button.")

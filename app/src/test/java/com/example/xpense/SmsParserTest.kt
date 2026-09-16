@@ -499,6 +499,58 @@ class SmsParserTest {
         assertEquals("GOOGLEPLAY", txn?.merchant)
     }
 
+    // ── Premium / policy reminders are not transactions ─────────────────────────────────────────
+
+    @Test
+    fun testInsurancePremiumReminderIgnored() {
+        // Reported: a renewal notice was recorded as a ₹1607 expense every month. Nothing has been
+        // paid — it says what is owed. Note the only debit verb in the whole message is the "paid"
+        // inside "Ignore if paid", which is what made it parse at all.
+        val sms = "Premium of Rs. 1607 for your ICICIPru policy no. X0000000 is due. Pay by " +
+            "21-Sep-2026 to renew your policy without health declaration/medicals and keep your " +
+            "life cover of Rs. 15000000 active. Visit https://ipru.co/ICICIP/xxxxxxxx to pay now. " +
+            "Ignore if paid."
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testPolicyBenefitPaymentReminderIgnored() {
+        val sms = " To enjoy this policy benefits pay premium of Rs. 1607 online at " +
+            "https://ipru.co/ICICIP/xxxxxxxx today. T&C apply. Ignore if paid."
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testMandateRegisteredButNotYetDebitedIgnored() {
+        // "has been initiated and will be applied ... on due date" — registered, not taken.
+        val sms = "Dear Customer transaction of Rs 1607.00 for your ICICIPru policy X0000000 has " +
+            "been initiated and will be applied to your policy on due date or payment date as applicable"
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testGenuinePremiumDebitStillParsed() {
+        // The matching debit that arrives once the money actually moves must still be recorded,
+        // otherwise the reminder fix would lose the expense entirely.
+        val sms = "Ravi Kumar Sharma payment of Rs.1607 for your iPru policy no. X0000000 has been " +
+            "successfully debited on Aug 2, 2026. Team Policybazaar"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1607.0, txn?.amount)
+    }
+
+    @Test
+    fun testGenuinePremiumUpiDebitStillParsed() {
+        val sms = "Rs.1607.00 debited A/cXX2455 and credited to PolicyBazaar via UPI Ref No " +
+            "102343442066 on 01Jan26. Call 18001031906, if not done by you. -BOI"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1607.0, txn?.amount)
+        assertEquals(true, txn?.merchant?.startsWith("PolicyBazaar"))
+    }
+
     @Test
     fun testIciciDebitPayeeReadFromBeforeCredited() {
         // ICICI phrases the spend as "... debited for Rs N ...; <payee> credited." — the payee is

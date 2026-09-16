@@ -26,7 +26,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, INSIGHTS_DETAIL, PROFILE, CATEGORY_RULES, IGNORED, BACKUP, NOTIFICATIONS, HELP
+    HOME, INSIGHTS, INSIGHTS_DETAIL, PROFILE, CATEGORY_RULES, RULE_DETAIL, IGNORED, BACKUP,
+    NOTIFICATIONS, HELP
 }
 
 /** UI status for the Backup & Restore screen. */
@@ -171,6 +172,85 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             ruleDao.deleteRule(id)
         }
+    }
+
+    // ── Auto-rule browsing & keyword editing ─────────────────────────────────
+    private val _selectedRuleId = MutableStateFlow<Long?>(null)
+    val selectedRuleId: StateFlow<Long?> = _selectedRuleId.asStateFlow()
+
+    /** Open one rule's keyword list. Mirrors the pendingRuleKeyword pattern for passing an argument. */
+    fun openRule(id: Long) {
+        _selectedRuleId.value = id
+        navigateTo(Screen.RULE_DETAIL)
+    }
+
+    // Which category sections are expanded on the Auto-Rules tab. Deliberately ViewModel state, not
+    // remember/rememberSaveable: MainActivity swaps whole screens with `when (currentScreen)`, so
+    // composable-local state is discarded when you open a rule — the section the user was in would
+    // collapse under them on the way back.
+    private val _expandedRuleCategories = MutableStateFlow<Set<Long>>(emptySet())
+    val expandedRuleCategories: StateFlow<Set<Long>> = _expandedRuleCategories.asStateFlow()
+
+    // Which sub-tab the Categories screen is showing, and its rule search. Held here for the same
+    // reason as the expanded sections above: opening a rule destroys CategoryRuleScreen, so
+    // composable-local state snapped back to the Categories tab (and cleared the search) every time
+    // you came back from a rule — or rotated the phone.
+    private val _ruleScreenTab = MutableStateFlow(0)
+    val ruleScreenTab: StateFlow<Int> = _ruleScreenTab.asStateFlow()
+
+    fun selectRuleScreenTab(index: Int) { _ruleScreenTab.value = index }
+
+    private val _ruleSearchActive = MutableStateFlow(false)
+    val ruleSearchActive: StateFlow<Boolean> = _ruleSearchActive.asStateFlow()
+
+    private val _ruleSearchQuery = MutableStateFlow("")
+    val ruleSearchQuery: StateFlow<String> = _ruleSearchQuery.asStateFlow()
+
+    fun setRuleSearchQuery(query: String) { _ruleSearchQuery.value = query }
+
+    /** Closing the search always clears the query, so reopening it starts empty. */
+    fun setRuleSearchActive(active: Boolean) {
+        _ruleSearchActive.value = active
+        if (!active) _ruleSearchQuery.value = ""
+    }
+
+    fun toggleRuleCategory(categoryId: Long) {
+        val current = _expandedRuleCategories.value
+        _expandedRuleCategories.value =
+            if (categoryId in current) current - categoryId else current + categoryId
+    }
+
+    // The three keyword edits all route through updateRule(), so each one re-persists the rule AND
+    // re-applies rules to existing transactions exactly as editing the rule by hand always has.
+
+    /** Append a keyword as a new '|' alternative; duplicates (case-insensitive) are ignored. */
+    fun addKeyword(rule: CategoryRule, keyword: String) {
+        val clean = keyword.trim()
+        if (clean.isEmpty()) return
+        val merged = mergeKeywordStrings(rule.keyword, clean)
+        if (merged != rule.keyword) updateRule(rule.id, merged, rule.categoryId, rule.label)
+    }
+
+    /** Replace the alternative at [index]; no-op when blank, out of range, or unchanged. */
+    fun updateKeywordAt(rule: CategoryRule, index: Int, keyword: String) {
+        val clean = keyword.trim()
+        if (clean.isEmpty()) return
+        val parts = splitAlternatives(rule.keyword).toMutableList()
+        if (index !in parts.indices || parts[index] == clean) return
+        parts[index] = clean
+        updateRule(rule.id, joinAlternatives(parts), rule.categoryId, rule.label)
+    }
+
+    /**
+     * Remove every alternative at [indices] in one edit — a single rule update and therefore a
+     * single rule re-application, rather than one per keyword. Removing them all is a no-op here:
+     * a rule with no keywords could never match, so the caller turns that into "delete the rule".
+     */
+    fun removeKeywordsAt(rule: CategoryRule, indices: Set<Int>) {
+        if (indices.isEmpty()) return
+        val remaining = splitAlternatives(rule.keyword).filterIndexed { i, _ -> i !in indices }
+        if (remaining.isEmpty()) return
+        updateRule(rule.id, joinAlternatives(remaining), rule.categoryId, rule.label)
     }
 
     private val _reapplyResult = MutableStateFlow<Int?>(null)
@@ -779,19 +859,32 @@ private fun normalizeKeywordGroup(group: String): String =
     group.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.joinToString(",")
 
 /**
+ * The '|'-separated alternatives of a rule keyword, trimmed with blanks dropped, in stored order
+ * and with their original casing intact. This is the display/edit view of a keyword — unlike the
+ * matcher's own split it does NOT lowercase or strip "@handle" suffixes, so what the Auto-Rules UI
+ * shows is exactly what is stored. The single definition of the alternative separator.
+ */
+fun splitAlternatives(keyword: String): List<String> =
+    keyword.split('|').map { it.trim() }.filter { it.isNotEmpty() }
+
+/** Inverse of [splitAlternatives]: re-joins alternatives into a storable keyword string. */
+fun joinAlternatives(parts: List<String>): String =
+    parts.map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" | ")
+
+/**
  * Merges two rule keyword strings (each a set of '|'-separated alternative groups) into one,
  * preserving the original display casing of [existing] and appending only those groups from
  * [incoming] not already present (compared case-insensitively, so "Swiggy" won't be re-added
  * next to "swiggy"). Blank groups are dropped.
  */
 fun mergeKeywordStrings(existing: String, incoming: String): String {
-    val groups = existing.split('|').map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+    val groups = splitAlternatives(existing).toMutableList()
     val seen = groups.map { normalizeKeywordGroup(it) }.toMutableSet()
-    incoming.split('|').map { it.trim() }.filter { it.isNotEmpty() }.forEach { g ->
+    splitAlternatives(incoming).forEach { g ->
         val norm = normalizeKeywordGroup(g)
         if (norm.isNotEmpty() && seen.add(norm)) groups.add(g)
     }
-    return groups.joinToString(" | ")
+    return joinAlternatives(groups)
 }
 
 /** Survivors (with merged keyword) to update and the now-redundant rule ids to delete. */

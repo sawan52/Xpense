@@ -1,5 +1,6 @@
 package com.example.xpense.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Category
@@ -36,21 +39,44 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     val rules      by viewModel.allRules.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
 
-    var selectedTab          by remember { mutableIntStateOf(0) }
     var showAddRuleDialog    by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var editingCategory      by remember { mutableStateOf<Category?>(null) }
     var deletingCategory     by remember { mutableStateOf<Category?>(null) }
-    var editingRule          by remember { mutableStateOf<CategoryRule?>(null) }
-    var deletingRule         by remember { mutableStateOf<CategoryRule?>(null) }
-    var searchActive         by remember { mutableStateOf(false) }
-    var searchQuery          by remember { mutableStateOf("") }
+
+    // Tab + search live in the ViewModel so they survive opening a rule (which destroys this
+    // screen) and a rotation; see the note on ruleScreenTab.
+    val selectedTab  by viewModel.ruleScreenTab.collectAsState()
+    val searchActive by viewModel.ruleSearchActive.collectAsState()
+    val searchQuery  by viewModel.ruleSearchQuery.collectAsState()
+
+    val expandedCategories by viewModel.expandedRuleCategories.collectAsState()
+
+    // Back unwinds this screen's own state before leaving it: close the search, then return to the
+    // Categories sub-tab, and only then let MainActivity's navigation handler pop the screen.
+    BackHandler(enabled = searchActive || selectedTab == 1) {
+        if (searchActive) viewModel.setRuleSearchActive(false) else viewModel.selectRuleScreenTab(0)
+    }
 
     // Search applies to the Auto-Rules tab: match keyword, label, or the mapped category name.
     val visibleRules = if (searchQuery.isBlank()) rules else rules.filter { rule ->
         rule.keyword.contains(searchQuery, ignoreCase = true) ||
             rule.label?.contains(searchQuery, ignoreCase = true) == true ||
             categories.find { it.id == rule.categoryId }?.name?.contains(searchQuery, ignoreCase = true) == true
+    }
+
+    // Busiest categories first, then alphabetical; rules inside a section sorted by display name.
+    val grouped = remember(visibleRules, categories) {
+        visibleRules.groupBy { it.categoryId }
+            .map { (catId, catRules) ->
+                val category = categories.find { it.id == catId }
+                    ?: Category(id = catId, name = "Unknown", iconName = "Category")
+                category to catRules.sortedBy { (it.label ?: it.keyword).lowercase() }
+            }
+            .sortedWith(
+                compareByDescending<Pair<Category, List<CategoryRule>>> { it.second.size }
+                    .thenBy { it.first.name.lowercase() }
+            )
     }
 
     var showMergeConfirm by remember { mutableStateOf(false) }
@@ -88,8 +114,7 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 actions = {
                     if (selectedTab == 1) {
                         IconButton(onClick = {
-                            searchActive = !searchActive
-                            if (!searchActive) searchQuery = ""
+                            viewModel.setRuleSearchActive(!searchActive)
                         }) {
                             Icon(Icons.Default.Search, "Search rules", tint = if (searchActive) PurpleLight else TextSecondary)
                         }
@@ -120,11 +145,11 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 containerColor = DarkBg,
                 contentColor = PurpleLight
             ) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
+                Tab(selected = selectedTab == 0, onClick = { viewModel.selectRuleScreenTab(0) },
                     selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
                     Text("Categories", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
                 }
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
+                Tab(selected = selectedTab == 1, onClick = { viewModel.selectRuleScreenTab(1) },
                     selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
                     Text("Auto-Rules", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
                 }
@@ -134,13 +159,14 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 if (searchActive) {
                     OutlinedTextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = { viewModel.setRuleSearchQuery(it) },
                         placeholder = { Text("Search rules…", color = TextMuted, fontSize = 14.sp) },
                         singleLine = true,
                         leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted, modifier = Modifier.size(20.dp)) },
                         trailingIcon = {
                             IconButton(onClick = {
-                                if (searchQuery.isBlank()) searchActive = false else searchQuery = ""
+                                if (searchQuery.isBlank()) viewModel.setRuleSearchActive(false)
+                                else viewModel.setRuleSearchQuery("")
                             }) {
                                 Icon(Icons.Default.Close, "Clear search", tint = TextMuted, modifier = Modifier.size(20.dp))
                             }
@@ -204,15 +230,27 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                             }
                         }
                     }
-                    items(visibleRules, key = { it.id }) { rule ->
-                        val category = categories.find { it.id == rule.categoryId }
-                            ?: Category(name = "Unknown", iconName = "Category")
-                        DarkRuleItem(
-                            rule = rule,
-                            category = category,
-                            onEdit = { editingRule = rule },
-                            onDelete = { deletingRule = rule }
-                        )
+                    // Rules grouped under collapsible category headers: 144 rules become 18 rows.
+                    // A search forces every matching section open so results are never hidden.
+                    grouped.forEach { (category, catRules) ->
+                        val isOpen = searchQuery.isNotBlank() || category.id in expandedCategories
+                        item(key = "cat_${category.id}") {
+                            RuleCategoryHeader(
+                                category = category,
+                                count = catRules.size,
+                                expanded = isOpen,
+                                onClick = { viewModel.toggleRuleCategory(category.id) }
+                            )
+                        }
+                        if (isOpen) {
+                            items(catRules, key = { it.id }) { rule ->
+                                DarkRuleItem(
+                                    rule = rule,
+                                    category = category,
+                                    onClick = { viewModel.openRule(rule.id) }
+                                )
+                            }
+                        }
                     }
                     if (visibleRules.isEmpty() && searchQuery.isNotBlank()) {
                         item {
@@ -258,34 +296,6 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
                 viewModel.addRule(keyword, categoryId, label)
                 showAddRuleDialog = false
             }
-        )
-    }
-
-    editingRule?.let { rule ->
-        DarkAddRuleDialog(
-            categories = categories,
-            initialKeyword = rule.keyword,
-            initialLabel = rule.label ?: "",
-            initialCategoryId = rule.categoryId,
-            title = "Edit Rule",
-            confirmLabel = "Save",
-            onDismiss = { editingRule = null },
-            onConfirm = { keyword, categoryId, label ->
-                viewModel.updateRule(rule.id, keyword, categoryId, label)
-                editingRule = null
-            }
-        )
-    }
-
-    deletingRule?.let { rule ->
-        ConfirmDialog(
-            title = "Delete Rule",
-            message = "Delete the rule for \"${rule.keyword}\"? This won't change existing transactions.",
-            onConfirm = {
-                viewModel.deleteRule(rule.id)
-                deletingRule = null
-            },
-            onDismiss = { deletingRule = null }
         )
     }
 
@@ -353,37 +363,84 @@ fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
     }
 }
 
+/** Collapsible section header for one category on the Auto-Rules tab. */
 @Composable
-fun DarkRuleItem(rule: CategoryRule, category: Category, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun RuleCategoryHeader(
+    category: Category,
+    count: Int,
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
     val color = CategoryUtils.getCategoryColor(category)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
-            .padding(16.dp),
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (expanded) DarkSurface else DarkCard)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(34.dp)
                 .background(color.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
+            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(18.dp))
         }
+        Text(
+            category.name,
+            color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text("$count", color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Icon(
+            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = TextMuted, modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+/**
+ * One rule in the Auto-Rules list. Shows the rule's display name and how many keywords it holds —
+ * never the raw keyword string, which for a 56-alternative rule rendered taller than the screen and
+ * pushed the category/label out of view. Tapping opens the keyword list.
+ */
+@Composable
+fun DarkRuleItem(rule: CategoryRule, category: Category, onClick: () -> Unit) {
+    val color = CategoryUtils.getCategoryColor(category)
+    val count = splitAlternatives(rule.keyword).size
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkCard)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(rule.keyword, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            val subtitle = rule.label?.let { "${category.name} • $it" } ?: category.name
-            Text(subtitle, color = TextMuted, fontSize = 12.sp)
+            // Single line + ellipsis: no rule can ever make this row grow again.
+            Text(
+                rule.label?.takeIf { it.isNotBlank() } ?: rule.keyword,
+                color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "$count keyword${if (count == 1) "" else "s"}",
+                color = TextMuted, fontSize = 12.sp, maxLines = 1
+            )
         }
-        IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Edit, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-        }
-        IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.Delete, null, tint = RedNegative.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
-        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
+            tint = color, modifier = Modifier.size(20.dp)
+        )
     }
 }
 
