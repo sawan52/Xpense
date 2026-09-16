@@ -17,8 +17,11 @@ import com.example.xpense.notifications.TransactionNotifier
 import com.example.xpense.sms.SmsParser
 import com.example.xpense.sms.SyncManager
 import android.content.Context
+import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -200,11 +203,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
      * edit only stands while no rule matches the row. Manual ("Manual Entry"/"Manual Update") rows
      * have no SMS to match and are skipped. Returns how many rows changed. See [reapplyDecision].
      */
-    private suspend fun reapplyRules(): Int {
+    private suspend fun reapplyRules(): Int = withContext(Dispatchers.Default) {
+        // Runs on Dispatchers.Default, NOT the caller's thread. viewModelScope is Main.immediate,
+        // and the per-row work below is pure regex/string matching — only rows that actually change
+        // hit a suspending DAO call, so on the main thread hundreds of rows would run back-to-back
+        // with no chance to draw a frame (measured ~1-2s of frozen UI on device at ~950 rows).
         val rules = ruleDao.getAllRulesList()
         val categories = categoryDao.getAllCategoriesList()
-        if (categories.isEmpty()) return 0
-        var changed = 0
+        if (categories.isEmpty()) return@withContext 0
+
+        // Collect first, write once: one transaction instead of a DAO round trip per changed row.
+        val updates = mutableListOf<ReapplyUpdate>()
         expenseDao.getAllExpensesList().forEach { exp ->
             if (exp.rawSms == "Manual Entry" || exp.rawSms == "Manual Update") return@forEach
             val result = SmsParser.categorizationFor(exp.rawSms, rules, categories)
@@ -215,14 +224,22 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 fromRule = result.fromRule,
                 ruleCategoryId = result.categoryId,
                 ruleLabel = result.label,
-                reextractedMerchant = SmsParser.extractMerchantFor(exp.rawSms)
+                // Only consulted when the stored merchant is unusable, so don't pay for the
+                // extraction otherwise; passing the current name is equivalent in that case.
+                reextractedMerchant = if (isUselessMerchantName(exp.merchant))
+                    SmsParser.extractMerchantFor(exp.rawSms) else exp.merchant
             )
             if (decision.categoryId != exp.categoryId || decision.merchant != exp.merchant) {
-                expenseDao.updateExpenseCategoryAndMerchant(exp.id, decision.categoryId, decision.merchant)
-                changed++
+                updates.add(ReapplyUpdate(exp.id, decision.categoryId, decision.merchant))
             }
         }
-        return changed
+
+        if (updates.isNotEmpty()) {
+            db.withTransaction {
+                updates.forEach { expenseDao.updateExpenseCategoryAndMerchant(it.id, it.categoryId, it.merchant) }
+            }
+        }
+        updates.size
     }
 
     /** User-triggered re-apply (e.g. after editing several rules); surfaces a result count. */
@@ -685,6 +702,9 @@ fun isUselessMerchantName(name: String): Boolean =
 
 /** Resolved category + display name for one row during rule re-application. */
 data class ReapplyDecision(val categoryId: Long, val merchant: String)
+
+/** One pending row edit, buffered so a whole re-apply commits in a single transaction. */
+private data class ReapplyUpdate(val id: Long, val categoryId: Long, val merchant: String)
 
 /**
  * Pure decision for re-applying rules to a single SMS-derived row (no DB/IO so it is unit-testable).
