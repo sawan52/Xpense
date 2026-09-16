@@ -16,9 +16,6 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses")
     suspend fun getAllExpensesList(): List<Expense>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM expenses WHERE rawSms = :rawSms AND date = :date)")
-    suspend fun doesExpenseExist(rawSms: String, date: Long): Boolean
-
     @Query("SELECT EXISTS(SELECT 1 FROM expenses WHERE rawSms = :rawSms)")
     suspend fun doesSmsExist(rawSms: String): Boolean
 
@@ -41,9 +38,6 @@ interface ExpenseDao {
 
     @Query("UPDATE expenses SET categoryId = :newId WHERE categoryId = :oldId")
     suspend fun reassignCategory(oldId: Long, newId: Long)
-
-    @Query("UPDATE expenses SET categoryId = :categoryId WHERE id = :id")
-    suspend fun updateExpenseCategory(id: Long, categoryId: Long)
 
     @Query("UPDATE expenses SET ignored = :ignored WHERE id = :id")
     suspend fun setIgnored(id: Long, ignored: Boolean)

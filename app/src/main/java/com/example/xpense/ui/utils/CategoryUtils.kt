@@ -35,8 +35,6 @@ object CategoryUtils {
         else            -> null
     }
 
-    fun getColorByName(name: String): Color = defaultColorByName(name) ?: CategoryOthersColor
-
     fun getIconByName(name: String): ImageVector = when (name) {
         // ── Original set ──
         "Restaurant"         -> Icons.Default.Restaurant

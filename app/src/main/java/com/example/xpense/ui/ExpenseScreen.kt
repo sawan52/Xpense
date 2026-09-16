@@ -682,9 +682,6 @@ fun SwipeToRestoreRow(
     )
 }
 
-fun formatDate(timestamp: Long): String =
-    SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(timestamp))
-
 // Date without the time — used on the Insights transaction list, where the time is intentionally
 // hidden (it's still shown when the transaction is opened in the edit sheet).
 fun formatCardDate(ts: Long): String =
