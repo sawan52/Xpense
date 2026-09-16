@@ -394,7 +394,7 @@ private fun helpTopics(): List<HelpTopic> = listOf(
     HelpTopic("Notifications inbox", Icons.Default.Notifications, CategoryEntertainmentColor) {
         Para("When Xpense can't confidently categorize a transaction, it files it under Others and lists it here (Profile → Notifications) so you can fix it later.")
         Bullet("Tap an item to create a rule for it — the transaction (and similar future ones) gets categorized instantly.")
-        Bullet("Items clear themselves once categorized. You can also dismiss one, Clear all, or Send a test notification.")
+        Bullet("Items clear themselves once categorized. You can also dismiss one with the ✕, or use Clear all from the ⋮ menu in the top-right.")
         Bullet("The Pop-up alerts toggle controls the heads-up notification only — even when it's off, items are still saved to this list.")
         MockNotificationItem()
     },
