@@ -319,13 +319,18 @@ object SmsParser {
         // group has ALL its keywords in the SMS. Among matching rules the winner is the one
         // whose MATCHED group has the most keywords — judged per group, not summed across
         // alternatives, so a rule with many alternatives doesn't outrank a more specific match.
-        // Ties keep list order (earlier rule wins).
+        // Ties keep list order (earlier rule wins). Each group is ranked by how well it is anchored
+        // (a group whose every keyword starts a word beats one matched mid-word — see [termMatch])
+        // and only then by group size, which preserves the existing "most specific rule wins".
+        // Keyword length is deliberately NOT a tie-break: between two equally-anchored rules the
+        // longer keyword is not the more relevant one (a "sawan kumar singh" self-transfer rule
+        // would otherwise outrank "policybaza" on an insurance SMS that names the policy holder).
         val best = rules.mapNotNull { rule ->
-            val matchedGroupSize = keywordGroupsOf(rule)
-                .filter { group -> group.all { text.contains(it) } }
-                .maxOfOrNull { it.size }
-            matchedGroupSize?.let { rule to it }
-        }.maxByOrNull { it.second }
+            keywordGroupsOf(rule)
+                .mapNotNull { group -> groupMatch(text, group)?.let { q -> q to group.size } }
+                .maxWithOrNull(groupRank)
+                ?.let { rule to it }
+        }.maxWithOrNull(compareBy(groupRank) { it.second })
         if (best != null) {
             return Categorization(best.first.categoryId, best.first.label, fromRule = true)
         }
@@ -347,7 +352,60 @@ object SmsParser {
         return Categorization(categoryId, null)
     }
 
-    private fun String.containsAny(vararg terms: String) = terms.any { this.contains(it) }
+    private fun String.containsAny(vararg terms: String) = terms.any { termMatch(this, it) > 0 }
+
+    // Shortest keyword still allowed to match in the MIDDLE of a word. Bank SMS glue the merchant
+    // into one token ("paytmpayzomato", "onlinedmartka", "upiswiggy"), so mid-word matching has to
+    // keep working — but a 3-letter fragment like "ola" also sits inside ordinary words
+    // ("choc-ola-tes", "ch-ola-s", "msb-ola-sagro") and mis-filed those as Ola/Transport. Four is
+    // the shortest length that keeps every real merchant keyword working while blocking "ola".
+    private const val MIN_MIDWORD_LENGTH = 4
+
+    private const val NO_MATCH = 0
+    private const val MATCH_MIDWORD = 1
+    private const val MATCH_WORD_START = 2
+
+    /**
+     * How well [term] matches inside [text]: [NO_MATCH], [MATCH_MIDWORD], or [MATCH_WORD_START].
+     *
+     * A term starting at a word boundary is the strong signal and always counts. A term buried
+     * inside a longer word counts only from [MIN_MIDWORD_LENGTH] characters up, which is what stops
+     * "ola" hijacking "MISTYCO CHOCOLATES" while leaving "zomato" free to match "paytmpayzomato".
+     * The score also ranks competing rules, so a word-start match outranks a mid-word one.
+     *
+     * A term beginning with punctuation has no word start to anchor to (e.g. a rule keyed on an
+     * aggregator prefix like "*flipkar"), so any occurrence counts as a word-start match.
+     * [text] and [term] are both already lowercased by the caller.
+     */
+    private fun termMatch(text: String, term: String): Int {
+        if (term.isEmpty()) return NO_MATCH
+        if (!term[0].isLetterOrDigit()) return if (text.contains(term)) MATCH_WORD_START else NO_MATCH
+        var best = NO_MATCH
+        var i = text.indexOf(term)
+        while (i >= 0) {
+            if (i == 0 || !text[i - 1].isLetterOrDigit()) return MATCH_WORD_START
+            if (term.length >= MIN_MIDWORD_LENGTH) best = MATCH_MIDWORD
+            i = text.indexOf(term, i + 1)
+        }
+        return best
+    }
+
+    /**
+     * Quality of one AND-group against [text]: null when any term is missing, otherwise the group's
+     * weakest term score (a group is only "word start" when every term of it is).
+     */
+    /** Ranks a matched group: anchoring first, then keyword count. */
+    private val groupRank: Comparator<Pair<Int, Int>> = compareBy({ it.first }, { it.second })
+
+    private fun groupMatch(text: String, group: List<String>): Int? {
+        var weakest = MATCH_WORD_START
+        for (term in group) {
+            val s = termMatch(text, term)
+            if (s == NO_MATCH) return null
+            if (s < weakest) weakest = s
+        }
+        return weakest
+    }
 
     // The text after "@" in a UPI id is a PSP/bank handle or payment id (@ybl = PhonePe,
     // @amaznaxis, @mairtel), never a merchant. Rule matching must ignore it so a keyword like

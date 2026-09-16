@@ -4,6 +4,25 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [3.2] - 2026-09-16
+
+### Fixed
+- **Auto-rules no longer match a short keyword buried inside a longer word.** A ₹220 payment to
+  "Cholas Coffe Co" was filed under Transport, because the `ola` rule matched the "ola" inside
+  "Ch**ola**s" — the same happened to "MISTYCO CHOC**OLA**TES" and "msb**ola**sagroprivatelimited".
+  A keyword shorter than four characters now only matches at the start of a word, so it can no
+  longer be found in the middle of an unrelated name.
+  - Longer keywords still match anywhere in a word, which matters because bank SMS often run the
+    merchant into a single token (`paytmpayzomato`, `upiswiggy`, `onlinedmartka`). Rules relying on
+    that keep working exactly as before.
+  - Transactions already filed under the wrong category are corrected by **Categories → Auto-Rules
+    → Re-apply rules**, as long as you never manually edited them.
+
+### Changed
+- When two auto-rules both apply, the one whose keywords match at the **start of a word** now wins
+  over one matched in the middle of a word, so the more precise rule takes precedence. Rules that
+  are equally precise are still decided by keyword count and then by which you created first.
+
 ## [3.1] - 2026-06-29
 
 ### Changed

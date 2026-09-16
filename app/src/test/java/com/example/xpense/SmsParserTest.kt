@@ -605,6 +605,158 @@ class SmsParserTest {
         assertEquals(5L, txn?.categoryId)          // Others — the empty keyword matched nothing
     }
 
+    // ── Keywords must start a word, never match mid-word ────────────────────────────────────────
+
+    @Test
+    fun testRuleKeywordDoesNotMatchMidWord() {
+        // Reported bug: a payment to "Cholas Coffe Co" was filed under Transport because the
+        // default "ola -> Transport" rule found "ola" inside "Ch(ola)s". A keyword may never
+        // start mid-word, so no rule matches and the txn falls through to Others.
+        val rules = listOf(CategoryRule(id = 1, keyword = "ola", categoryId = 3L, label = "Ola"))
+        val sms = """
+            Sent Rs.220.00
+            From HDFC Bank A/C *1234
+            To Cholas Coffe Co
+            On 03/07/26
+            Ref 1234567890
+            Not You?
+            Call 1234567890/SMS BLOCK UPI to 8888888888
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(220.0, txn?.amount)
+        assertEquals(5L, txn?.categoryId)              // Others, NOT Transport
+        assertEquals("Cholas Coffe Co", txn?.merchant) // the rule's label was NOT applied
+    }
+
+    @Test
+    fun testRuleKeywordDoesNotMatchMidWordInConcatenatedVpa() {
+        // Same bug on a card alert whose merchant is a run-together VPA: "msb(ola)sagro...".
+        val rules = listOf(CategoryRule(id = 1, keyword = "ola", categoryId = 3L, label = "Ola"))
+        val sms = """
+            Txn Rs.669.00
+            On HDFC Bank Card 2487
+            At msbolasagroprivatelimited
+            by UPI 657230214656
+            On 25-07
+            Not You?
+            Call 1234567890/SMS BLOCK CC 2487 to 8888888888
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(669.0, txn?.amount)
+        assertEquals(5L, txn?.categoryId)                        // Others, NOT Transport
+        assertEquals("msbolasagroprivatelimited", txn?.merchant) // label not applied
+    }
+
+    @Test
+    fun testRuleKeywordDoesNotMatchMidWordInOrdinaryWord() {
+        // Real case found in the user's data: a ₹350 payment to "MISTYCO CHOCOLATES" was filed as
+        // Ola/Transport, because "choc(ola)tes" contains the keyword. Guards the plain-English
+        // variant of the bug, where the merchant is not a VPA at all.
+        val rules = listOf(CategoryRule(id = 1, keyword = "ola", categoryId = 3L, label = "Ola"))
+        val sms = """
+            Sent Rs.350.00
+            From HDFC Bank A/C *5104
+            To MISTYCO CHOCOLATES
+            On 29/08/26
+            Ref 624198228348
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)               // Others, NOT Transport
+        assertEquals("MISTYCO CHOCOLATES", txn?.merchant)
+    }
+
+    @Test
+    fun testRuleKeywordStillMatchesAtWordStart() {
+        // The genuine case must keep working: "ola" starting a word still categorizes.
+        val rules = listOf(CategoryRule(id = 1, keyword = "ola", categoryId = 3L, label = "Ola"))
+        val sms = "Sent Rs.150.00 From HDFC Bank A/C *1234 To Ola Cabs On 03-07-26"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(3L, txn?.categoryId)   // Transport
+        assertEquals("Ola", txn?.merchant)  // rule label applied
+    }
+
+    @Test
+    fun testRuleKeywordMatchesRunTogetherMerchantName() {
+        // A keyword may still run INTO a word — Indian VPAs are routinely concatenated, so
+        // "ola" must match "olacabs" even though it isn't a standalone word there.
+        val rules = listOf(CategoryRule(id = 1, keyword = "ola", categoryId = 3L, label = "Ola"))
+        val sms = "Rs.150.00 debited to olacabs@ybl on 05-Jun"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(3L, txn?.categoryId)
+        assertEquals("Ola", txn?.merchant)
+    }
+
+    @Test
+    fun testLongKeywordStillMatchesMidWord() {
+        // Mid-word matching is load-bearing: bank SMS glue the merchant into one token, so a
+        // keyword of MIN_MIDWORD_LENGTH or more must still match inside a word. Auditing the real
+        // database found 19 rows relying on this ("paytmpayzomato", "upiswiggy", "onlinedmartka",
+        // "btravi88") — blocking mid-word matching outright would silently un-categorize them all.
+        val rules = listOf(CategoryRule(id = 1, keyword = "zomato", categoryId = 1L, label = "Zomato"))
+        val sms = "Txn Rs.423.67 On HDFC Bank Card 2487 At paytmpayzomato by UPI 123456789012"
+        val txn = SmsParser.parseTransaction(sms, rules, testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1L, txn?.categoryId)   // Food
+        assertEquals("Zomato", txn?.merchant)
+    }
+
+    @Test
+    fun testEquallyAnchoredRulesKeepListOrderNotLongestKeyword() {
+        // Two rules match at a word start with one keyword each; the earlier rule must win.
+        // Ranking by keyword length instead would let a self-transfer rule keyed on the account
+        // holder's name outrank the insurer on an insurance SMS that names the policy holder.
+        val cats = testCategories + Category(id = 8, name = "Insurance", iconName = "HealthAndSafety")
+        val rules = listOf(
+            CategoryRule(id = 15, keyword = "policybaza", categoryId = 8L, label = "Term Insurance"),
+            CategoryRule(id = 100, keyword = "ravi kumar sharma", categoryId = 5L, label = "Self Transfer")
+        )
+        val sms = "Ravi Kumar Sharma payment of Rs.1607 for your iPru policy no. X0000000 has been " +
+            "successfully debited on Aug 2, 2026. Team Policybazaar"
+        val txn = SmsParser.parseTransaction(sms, rules, cats)
+
+        assertNotNull(txn)
+        assertEquals(8L, txn?.categoryId)              // Insurance, not Others
+        assertEquals("Term Insurance", txn?.merchant)
+    }
+
+    @Test
+    fun testBuiltInKeywordFallbackDoesNotMatchMidWord() {
+        // The built-in fallback list carries its own "ola" (Transport), so the mid-word guard has
+        // to apply there too — otherwise the Cholas txn lands in Transport even with NO rules.
+        val sms = """
+            Sent Rs.220.00
+            From HDFC Bank A/C *1234
+            To Cholas Coffe Co
+            On 03/07/26
+        """.trimIndent()
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(5L, txn?.categoryId)   // Others
+        assertEquals(true, txn?.uncategorized)
+    }
+
+    @Test
+    fun testBuiltInKeywordFallbackStillMatchesAtWordStart() {
+        // Sanity: the fallback still categorizes a real Ola spend with no rules configured.
+        val sms = "Rs.250.00 spent at Ola on 05-Jun"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(3L, txn?.categoryId)   // Transport via keyword fallback
+    }
+
     @Test
     fun testHdfcCardMerchantWithLeadingDotNoiseExtracted() {
         // HDFC card "Spent" alert prefixes the merchant with ".." noise after "At ", which the
