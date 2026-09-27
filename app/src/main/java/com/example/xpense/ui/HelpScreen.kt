@@ -119,9 +119,11 @@ private val topics = listOf(
         "The Insights tab is both your spending breakdown and your full transaction list.",
         listOf(
             "Pick a month from the pills at the top. The donut card shows the total, your top category, the daily average and what's excluded (archived).",
-            "Tap the donut to open the full breakdown. There, tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and top merchants.",
+            "Tap the donut to open the full breakdown. There, tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and its top merchants. Tap a merchant to see only its transactions.",
             "Smart insights are generated from your own spending: big changes, recurring payments, your top category.",
             "Tap the tune button to filter by category, amount or source (SMS or manual) and to sort. Active filters appear as chips you can tap to remove.",
+            "Sorting by Highest or Lowest shows one list in amount order, with each transaction's date under its name. Newest and Oldest keep the day-by-day groups.",
+            "The search button finds any transaction by merchant, category, note or amount, and also searches your categories and rules. Your recent searches are remembered.",
             "Tap a transaction to edit it; long-press to select several and archive or delete them together."
         )
     ),
@@ -130,6 +132,7 @@ private val topics = listOf(
         "Most spending is tracked automatically from SMS, but you can add anything by hand with the + button.",
         listOf(
             "Type the amount, pick a category chip, and say where you spent. Date, time and a note are optional.",
+            "Amounts use Indian commas as you type (₹12,34,567.89) and allow up to 2 decimal places. Paise show in your transaction lists too.",
             "Need a category that doesn't exist yet? Tap + New in the category row.",
             "For SMS transactions, “Add a rule for this” teaches Xpense how to categorize similar ones in future.",
             "If you re-categorize a transaction a rule already covers, “Force auto rule” appears next time. Tap it to snap back to what the rule says (amount and note are kept).",
@@ -143,6 +146,8 @@ private val topics = listOf(
             "Each category tile shows this month's spend. Use its ⋯ menu to edit it, view its transactions, or delete it. “Others” can't be deleted, and a deleted category's transactions and rules move to Others.",
             "On Auto-Rules, rules are grouped under their category. Tap a group to open it; each rule shows its name and keyword count.",
             "Open a rule to see its keywords. Tap one to edit it; press and hold to select several and delete them. Deleting every keyword deletes the rule.",
+            "The ⋯ menu on a rule renames it, moves it to another category, or deletes the whole rule.",
+            "Use the search button to find a category, or a rule by its name or any of its keywords.",
             "A keyword of four letters or more also matches inside a longer word, so “zomato” catches “paytmpayzomato”. Shorter ones must start a word, so “ola” can't hijack “Cholas”.",
             "Rules ignore everything after “@” in a UPI id, so your keyword matches the merchant, not the handle.",
             "Within one keyword a comma means every word must appear; “|” separates alternatives.",

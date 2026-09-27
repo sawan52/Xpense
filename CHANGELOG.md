@@ -4,6 +4,50 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.0] - 2026-09-27
+
+A complete redesign of every screen, plus search, filters and a monthly budget.
+
+### Added
+- **A new look.** Every screen, sheet and dialog has been redesigned with new fonts, softer
+  cards, a floating bottom bar and a raised **+** button. Amounts use a clear monospaced font.
+- **Light mode.** Switch between dark and light under **Profile → Appearance**. Dark is still
+  the default, and your choice is remembered.
+- **Search.** Find any transaction by merchant, category, note or amount, and search your
+  categories and rules, from the search button on **Insights** and **Categories**. Matches are
+  highlighted and recent searches are remembered.
+- **Filter & sort** on Insights: filter by category, amount range or source (SMS or manual),
+  and sort by newest, oldest, highest or lowest. Active filters show as chips you can tap to
+  remove. Sorting by amount shows one list in amount order with each row's date.
+- **Category page.** Tap a category (from the breakdown, a category tile or search) to see its
+  month's spend, change versus last month, a 6-month chart, top merchants and its transactions.
+  Tap a merchant to see only its transactions.
+- **Monthly budget.** Set one from Home or **Profile → Monthly budget**, and Home shows how much
+  is left this month, or how far over you are.
+- **Smart insights** on Insights, worked out from your own spending: the category that changed
+  most, recurring payments, your top category and your biggest spend.
+- **Archive and delete** straight from a transaction's edit sheet.
+- New date and time pickers when adding or editing an expense.
+
+### Changed
+- **Home** shows what you have spent this month, with the change versus last month and a daily
+  spending line. The 6-month chart is taller and shows each month's amount.
+- **Insights** gathers the month's total, top category, daily average and archived total into
+  one card. Tap the donut for the full breakdown, where you can tap a slice to pick a category.
+- **Categories** are shown as tiles with this month's spend. Each tile's ⋯ menu edits the
+  category, opens its transactions or deletes it.
+- **Amounts** in the add and edit sheet use Indian commas as you type (₹12,34,567.89) and allow
+  up to 2 decimal places. Transaction lists now show paise when a transaction has them (₹56.39
+  instead of ₹56).
+- The add and edit sheet opens with the transaction's category already in view.
+- Messages and the Help guide were reworded to be shorter and plainer, and Help covers every new
+  feature.
+
+### Fixed
+- Long amounts no longer scroll sideways out of view when you open a transaction; the whole
+  amount always fits.
+- Very large amounts no longer appear in scientific notation (like 1.0E7) when edited.
+
 ## [3.3] - 2026-09-16
 
 ### Added
