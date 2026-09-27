@@ -1,10 +1,10 @@
 package com.example.xpense.ui.utils
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.xpense.data.entity.Category
@@ -13,6 +13,9 @@ import com.example.xpense.ui.theme.*
 object CategoryUtils {
 
     fun getCategoryIcon(category: Category): ImageVector = getIconByName(category.iconName)
+
+    /** The design's tinted icon-tile background: the category colour at ~13% alpha. */
+    fun soft(color: Color): Color = color.copy(alpha = 0.13f)
 
     fun getCategoryColor(category: Category): Color {
         // Built-in categories keep their familiar colours...
@@ -37,65 +40,69 @@ object CategoryUtils {
 
     fun getIconByName(name: String): ImageVector = when (name) {
         // ── Original set ──
-        "Restaurant"         -> Icons.Default.Restaurant
-        "ShoppingCart"       -> Icons.Default.ShoppingCart
-        "DirectionsCar"      -> Icons.Default.DirectionsCar
-        "ReceiptLong"        -> Icons.AutoMirrored.Filled.ReceiptLong
-        "MedicalServices"    -> Icons.Default.MedicalServices
-        "ConfirmationNumber" -> Icons.Default.ConfirmationNumber
-        "Savings"            -> Icons.Default.Savings
-        "AccountBalance"     -> Icons.Default.AccountBalance
-        "School"             -> Icons.Default.School
-        "Home"               -> Icons.Default.Home
-        "Flight"             -> Icons.Default.Flight
+        "Restaurant"         -> Icons.Rounded.Restaurant
+        "ShoppingCart"       -> Icons.Rounded.ShoppingCart
+        "DirectionsCar"      -> Icons.Rounded.DirectionsCar
+        "ReceiptLong"        -> Icons.AutoMirrored.Rounded.ReceiptLong
+        "MedicalServices"    -> Icons.Rounded.MedicalServices
+        "ConfirmationNumber" -> Icons.Rounded.ConfirmationNumber
+        "Savings"            -> Icons.Rounded.Savings
+        "AccountBalance"     -> Icons.Rounded.AccountBalance
+        "School"             -> Icons.Rounded.School
+        "Home"               -> Icons.Rounded.Home
+        "Flight"             -> Icons.Rounded.Flight
         // ── Food & drink ──
-        "LocalGroceryStore"  -> Icons.Default.LocalGroceryStore
-        "LocalCafe"          -> Icons.Default.LocalCafe
-        "Fastfood"           -> Icons.Default.Fastfood
-        "LocalBar"           -> Icons.Default.LocalBar
-        "Cake"               -> Icons.Default.Cake
+        "LocalGroceryStore"  -> Icons.Rounded.LocalGroceryStore
+        "LocalCafe"          -> Icons.Rounded.LocalCafe
+        "Fastfood"           -> Icons.Rounded.Fastfood
+        "LocalBar"           -> Icons.Rounded.LocalBar
+        "Cake"               -> Icons.Rounded.Cake
         // ── Transport ──
-        "LocalGasStation"    -> Icons.Default.LocalGasStation
-        "DirectionsBus"      -> Icons.Default.DirectionsBus
-        "Train"              -> Icons.Default.Train
-        "LocalTaxi"          -> Icons.Default.LocalTaxi
-        "LocalParking"       -> Icons.Default.LocalParking
+        "LocalGasStation"    -> Icons.Rounded.LocalGasStation
+        "DirectionsBus"      -> Icons.Rounded.DirectionsBus
+        "Train"              -> Icons.Rounded.Train
+        "LocalTaxi"          -> Icons.Rounded.LocalTaxi
+        "LocalParking"       -> Icons.Rounded.LocalParking
         // ── Health & personal ──
-        "FitnessCenter"      -> Icons.Default.FitnessCenter
-        "LocalPharmacy"      -> Icons.Default.LocalPharmacy
-        "Spa"                -> Icons.Default.Spa
-        "SportsSoccer"       -> Icons.Default.SportsSoccer
+        "FitnessCenter"      -> Icons.Rounded.FitnessCenter
+        "LocalPharmacy"      -> Icons.Rounded.LocalPharmacy
+        "Spa"                -> Icons.Rounded.Spa
+        "SportsSoccer"       -> Icons.Rounded.SportsSoccer
         // ── Entertainment ──
-        "Movie"              -> Icons.Default.Movie
-        "Tv"                 -> Icons.Default.Tv
-        "MusicNote"          -> Icons.Default.MusicNote
-        "SportsEsports"      -> Icons.Default.SportsEsports
-        "MenuBook"           -> Icons.AutoMirrored.Filled.MenuBook
-        "Subscriptions"      -> Icons.Default.Subscriptions
+        "Movie"              -> Icons.Rounded.Movie
+        "Tv"                 -> Icons.Rounded.Tv
+        "MusicNote"          -> Icons.Rounded.MusicNote
+        "SportsEsports"      -> Icons.Rounded.SportsEsports
+        "MenuBook"           -> Icons.AutoMirrored.Rounded.MenuBook
+        "Subscriptions"      -> Icons.Rounded.Subscriptions
         // ── Lifestyle & home ──
-        "Hotel"              -> Icons.Default.Hotel
-        "Checkroom"          -> Icons.Default.Checkroom
-        "Devices"            -> Icons.Default.Devices
-        "Chair"              -> Icons.Default.Chair
-        "Pets"               -> Icons.Default.Pets
-        "ChildCare"          -> Icons.Default.ChildCare
-        "CardGiftcard"       -> Icons.Default.CardGiftcard
-        "VolunteerActivism"  -> Icons.Default.VolunteerActivism
+        "Hotel"              -> Icons.Rounded.Hotel
+        "Checkroom"          -> Icons.Rounded.Checkroom
+        "Devices"            -> Icons.Rounded.Devices
+        "Chair"              -> Icons.Rounded.Chair
+        "Pets"               -> Icons.Rounded.Pets
+        "ChildCare"          -> Icons.Rounded.ChildCare
+        "CardGiftcard"       -> Icons.Rounded.CardGiftcard
+        "VolunteerActivism"  -> Icons.Rounded.VolunteerActivism
         // ── Finance ──
-        "TrendingUp"         -> Icons.AutoMirrored.Filled.TrendingUp
-        "CreditCard"         -> Icons.Default.CreditCard
-        "AccountBalanceWallet" -> Icons.Default.AccountBalanceWallet
-        "HealthAndSafety"    -> Icons.Default.HealthAndSafety
-        "Gavel"              -> Icons.Default.Gavel
-        "Work"               -> Icons.Default.Work
-        "Handyman"           -> Icons.Default.Handyman
+        "TrendingUp"         -> Icons.AutoMirrored.Rounded.TrendingUp
+        "CreditCard"         -> Icons.Rounded.CreditCard
+        "AccountBalanceWallet" -> Icons.Rounded.AccountBalanceWallet
+        "HealthAndSafety"    -> Icons.Rounded.HealthAndSafety
+        "Gavel"              -> Icons.Rounded.Gavel
+        "Work"               -> Icons.Rounded.Work
+        "Handyman"           -> Icons.Rounded.Handyman
         // ── Utilities ──
-        "Bolt"               -> Icons.Default.Bolt
-        "WaterDrop"          -> Icons.Default.WaterDrop
-        "Wifi"               -> Icons.Default.Wifi
-        "PhoneAndroid"       -> Icons.Default.PhoneAndroid
-        "LocalLaundryService" -> Icons.Default.LocalLaundryService
-        else                 -> Icons.Default.Category
+        "Bolt"               -> Icons.Rounded.Bolt
+        "WaterDrop"          -> Icons.Rounded.WaterDrop
+        "Wifi"               -> Icons.Rounded.Wifi
+        "PhoneAndroid"       -> Icons.Rounded.PhoneAndroid
+        "LocalLaundryService" -> Icons.Rounded.LocalLaundryService
+        "Cookie"             -> Icons.Rounded.Cookie
+        "Shield"             -> Icons.Rounded.Shield
+        "Autorenew"          -> Icons.Rounded.Autorenew
+        "Insights"           -> Icons.Rounded.Insights
+        else                 -> Icons.Rounded.Category
     }
 
     val availableIcons = listOf(
@@ -119,6 +126,7 @@ object CategoryUtils {
         "Gavel", "Work", "Handyman",
         // Utilities
         "Bolt", "WaterDrop", "Wifi", "PhoneAndroid", "LocalLaundryService",
+        "Cookie", "Shield", "Autorenew", "Insights",
         // Generic fallback
         "Category"
     )

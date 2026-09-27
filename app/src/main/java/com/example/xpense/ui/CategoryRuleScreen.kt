@@ -1,695 +1,404 @@
 package com.example.xpense.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.MergeType
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.rounded.Label
+import androidx.compose.material.icons.automirrored.rounded.MergeType
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.ui.components.ConfirmDialog
-import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.components.design.*
+import com.example.xpense.ui.theme.XType
+import com.example.xpense.ui.theme.XpenseTheme
 import com.example.xpense.ui.utils.CategoryUtils
+import com.example.xpense.ui.utils.CurrencyUtils
+import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryRuleScreen(viewModel: ExpenseViewModel) {
+    val c = XpenseTheme.colors
     val rules      by viewModel.allRules.collectAsState()
     val categories by viewModel.allCategories.collectAsState()
+    val active     by viewModel.activeExpenses.collectAsState()
+    // Tab lives in the ViewModel so it survives opening a rule (which destroys this screen).
+    val selectedTab by viewModel.ruleScreenTab.collectAsState()
+    val expanded    by viewModel.expandedRuleCategories.collectAsState()
+    val toast = LocalToast.current
 
-    var showAddRuleDialog    by remember { mutableStateOf(false) }
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
-    var editingCategory      by remember { mutableStateOf<Category?>(null) }
-    var deletingCategory     by remember { mutableStateOf<Category?>(null) }
-
-    // Tab + search live in the ViewModel so they survive opening a rule (which destroys this
-    // screen) and a rotation; see the note on ruleScreenTab.
-    val selectedTab  by viewModel.ruleScreenTab.collectAsState()
-    val searchActive by viewModel.ruleSearchActive.collectAsState()
-    val searchQuery  by viewModel.ruleSearchQuery.collectAsState()
-
-    val expandedCategories by viewModel.expandedRuleCategories.collectAsState()
-
-    // Back unwinds this screen's own state before leaving it: close the search, then return to the
-    // Categories sub-tab, and only then let MainActivity's navigation handler pop the screen.
-    BackHandler(enabled = searchActive || selectedTab == 1) {
-        if (searchActive) viewModel.setRuleSearchActive(false) else viewModel.selectRuleScreenTab(0)
-    }
-
-    // Search applies to the Auto-Rules tab: match keyword, label, or the mapped category name.
-    val visibleRules = if (searchQuery.isBlank()) rules else rules.filter { rule ->
-        rule.keyword.contains(searchQuery, ignoreCase = true) ||
-            rule.label?.contains(searchQuery, ignoreCase = true) == true ||
-            categories.find { it.id == rule.categoryId }?.name?.contains(searchQuery, ignoreCase = true) == true
-    }
-
-    // Busiest categories first, then alphabetical; rules inside a section sorted by display name.
-    val grouped = remember(visibleRules, categories) {
-        visibleRules.groupBy { it.categoryId }
-            .map { (catId, catRules) ->
-                val category = categories.find { it.id == catId }
-                    ?: Category(id = catId, name = "Unknown", iconName = "Category")
-                category to catRules.sortedBy { (it.label ?: it.keyword).lowercase() }
-            }
-            .sortedWith(
-                compareByDescending<Pair<Category, List<CategoryRule>>> { it.second.size }
-                    .thenBy { it.first.name.lowercase() }
-            )
-    }
-
+    var showAddRule by remember { mutableStateOf(false) }
+    var showAddCategory by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var deletingCategory by remember { mutableStateOf<Category?>(null) }
     var showMergeConfirm by remember { mutableStateOf(false) }
-    // Rows that would be folded away by a merge — drives both the action row's visibility and count.
-    val duplicateCount = consolidateRules(rules).deleteIds.size
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    // Back returns to the Categories sub-tab before leaving the screen.
+    BackHandler(enabled = selectedTab == 1) { viewModel.selectRuleScreenTab(0) }
+
     val reapplyResult by viewModel.reapplyResult.collectAsState()
     LaunchedEffect(reapplyResult) {
-        reapplyResult?.let { count ->
-            snackbarHostState.showSnackbar(
-                if (count == 0) "All transactions already match the rules"
-                else "Recategorized $count transaction${if (count == 1) "" else "s"}"
-            )
+        reapplyResult?.let { n ->
+            toast.show(if (n == 0) "All transactions already match" else "Recategorized $n transaction${if (n == 1) "" else "s"}")
             viewModel.clearReapplyResult()
         }
     }
     val mergeResult by viewModel.mergeResult.collectAsState()
     LaunchedEffect(mergeResult) {
-        mergeResult?.let { count ->
-            snackbarHostState.showSnackbar(
-                if (count == 0) "No duplicate rules to merge"
-                else "Merged $count duplicate rule${if (count == 1) "" else "s"}"
-            )
+        mergeResult?.let { n ->
+            toast.show(if (n == 0) "No duplicate rules to merge" else "Merged $n duplicate rule${if (n == 1) "" else "s"}")
             viewModel.clearMergeResult()
         }
     }
 
-    Scaffold(
-        containerColor = DarkBg,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text("Categories", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                actions = {
-                    if (selectedTab == 1) {
-                        IconButton(onClick = {
-                            viewModel.setRuleSearchActive(!searchActive)
-                        }) {
-                            Icon(Icons.Default.Search, "Search rules", tint = if (searchActive) PurpleLight else TextSecondary)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBg),
-                windowInsets = WindowInsets(0, 0, 0, 0)
-            )
-        },
-        floatingActionButton = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(PurplePrimary, PurpleLight)))
-                    .clickable {
-                        if (selectedTab == 0) showAddCategoryDialog = true else showAddRuleDialog = true
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(24.dp))
+    // This month's spend per category for the tiles.
+    val monthSpend = remember(active) {
+        val cal = Calendar.getInstance()
+        val y = cal.get(Calendar.YEAR); val m = cal.get(Calendar.MONTH)
+        active.filter { cal.timeInMillis = it.expense.date; cal.get(Calendar.YEAR) == y && cal.get(Calendar.MONTH) == m }
+            .groupBy { it.category.id }.mapValues { (_, l) -> l.sumOf { it.expense.amount } }
+    }
+    // Busiest categories first, then alphabetical; rules inside a section sorted by display name.
+    val grouped = remember(rules, categories) {
+        rules.groupBy { it.categoryId }
+            .map { (catId, catRules) ->
+                (categories.find { it.id == catId } ?: Category(id = catId, name = "Unknown", iconName = "Category")) to
+                    catRules.sortedBy { (it.label ?: it.keyword).lowercase() }
+            }
+            .sortedWith(compareByDescending<Pair<Category, List<CategoryRule>>> { it.second.size }.thenBy { it.first.name.lowercase() })
+    }
+    val duplicateCount = remember(rules) { consolidateRules(rules).deleteIds.size }
+
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            TitleHeader("Categories") {
+                HeaderButton(Icons.Rounded.Search, { viewModel.openSearch(if (selectedTab == 0) SearchScope.CATEGORIES else SearchScope.RULES) }, contentDescription = "Search")
+                val shape = RoundedCornerShape(14.dp)
+                Row(
+                    Modifier.height(42.dp).shadow(12.dp, shape, ambientColor = c.ac, spotColor = c.ac).clip(shape).background(c.ac)
+                        .clickable { if (selectedTab == 0) showAddCategory = true else showAddRule = true }
+                        .padding(start = 10.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    XIcon(Icons.Rounded.Add, 20.dp, Color.White)
+                    Text(if (selectedTab == 0) "Category" else "Rule", style = XType.smallStrong, color = Color.White)
+                }
             }
         }
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            PrimaryTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = DarkBg,
-                contentColor = PurpleLight
-            ) {
-                Tab(selected = selectedTab == 0, onClick = { viewModel.selectRuleScreenTab(0) },
-                    selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
-                    Text("Categories", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
-                }
-                Tab(selected = selectedTab == 1, onClick = { viewModel.selectRuleScreenTab(1) },
-                    selectedContentColor = PurpleLight, unselectedContentColor = TextMuted) {
-                    Text("Auto-Rules", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold)
-                }
-            }
+        item {
+            SegmentedControl(listOf("Categories", "Auto-Rules"), selectedTab, { viewModel.selectRuleScreenTab(it) }, Modifier.padding(top = 8.dp, bottom = 8.dp))
+        }
 
-            if (selectedTab == 1) {
-                if (searchActive) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setRuleSearchQuery(it) },
-                        placeholder = { Text("Search rules…", color = TextMuted, fontSize = 14.sp) },
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted, modifier = Modifier.size(20.dp)) },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                if (searchQuery.isBlank()) viewModel.setRuleSearchActive(false)
-                                else viewModel.setRuleSearchQuery("")
-                            }) {
-                                Icon(Icons.Default.Close, "Clear search", tint = TextMuted, modifier = Modifier.size(20.dp))
-                            }
-                        },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PurplePrimary,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedContainerColor = DarkCard,
-                            unfocusedContainerColor = DarkCard,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            cursorColor = PurpleLight
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .padding(top = 12.dp)
-                    )
-                }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(PurplePrimary.copy(alpha = 0.12f))
-                                .clickable { viewModel.reapplyRulesToExistingTransactions() }
-                                .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Re-apply rules", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text("Recategorize existing transactions with these rules", color = TextMuted, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                    if (duplicateCount > 0) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(PurplePrimary.copy(alpha = 0.12f))
-                                    .clickable { showMergeConfirm = true }
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.MergeType, null, tint = PurpleLight, modifier = Modifier.size(20.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Merge duplicate rules", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                    Text("Combine rules with the same category & label", color = TextMuted, fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
-                    // Rules grouped under collapsible category headers: 144 rules become 18 rows.
-                    // A search forces every matching section open so results are never hidden.
-                    grouped.forEach { (category, catRules) ->
-                        val isOpen = searchQuery.isNotBlank() || category.id in expandedCategories
-                        item(key = "cat_${category.id}") {
-                            RuleCategoryHeader(
-                                category = category,
-                                count = catRules.size,
-                                expanded = isOpen,
-                                onClick = { viewModel.toggleRuleCategory(category.id) }
-                            )
-                        }
-                        if (isOpen) {
-                            items(catRules, key = { it.id }) { rule ->
-                                DarkRuleItem(
-                                    rule = rule,
-                                    category = category,
-                                    onClick = { viewModel.openRule(rule.id) }
-                                )
-                            }
-                        }
-                    }
-                    if (visibleRules.isEmpty() && searchQuery.isNotBlank()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(DarkCard)
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No rules match \"$searchQuery\"", color = TextMuted, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                    item { Spacer(Modifier.height(80.dp)) }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(categories, key = { it.id }) { category ->
-                        DarkCategoryItem(
-                            category = category,
-                            canDelete = !category.name.equals("Others", ignoreCase = true),
-                            onEdit = { editingCategory = category },
-                            onDelete = { deletingCategory = category }
+        if (selectedTab == 0) {
+            items(categories.chunked(2), key = { row -> row.first().id }) { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { cat ->
+                        CategoryTile(
+                            cat, monthSpend[cat.id] ?: 0.0, Modifier.weight(1f),
+                            canDelete = !cat.name.equals("Others", ignoreCase = true),
+                            onOpen = { viewModel.openCategory(cat.id) },
+                            onEdit = { editingCategory = cat },
+                            onDelete = { deletingCategory = cat }
                         )
                     }
-                    item { Spacer(Modifier.height(80.dp)) }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
+            }
+        } else {
+            item {
+                val shape = RoundedCornerShape(22.dp)
+                Row(
+                    Modifier.fillMaxWidth().clip(shape).background(Brush.linearGradient(listOf(c.acSoft, Color.Transparent)))
+                        .border(1.dp, c.line, shape).padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    IconTile(Icons.Rounded.Autorenew, Color.White, size = 42.dp, radius = 14.dp, iconSize = 21.dp, background = c.ac)
+                    Column(Modifier.weight(1f)) {
+                        Text("Re-apply rules", style = XType.bodyStrong, color = c.tx)
+                        Text("Recategorize past transactions", style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp))
+                    }
+                    XButton("Run", { viewModel.reapplyRulesToExistingTransactions() }, style = BtnStyle.Inverse, height = 34.dp, radius = 12.dp, textStyle = XType.captionStrong)
+                }
+            }
+            if (duplicateCount > 0) {
+                item {
+                    GlassCard(Modifier.fillMaxWidth(), radius = 22.dp, contentPadding = PaddingValues(16.dp), onClick = { showMergeConfirm = true }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            IconTile(Icons.AutoMirrored.Rounded.MergeType, c.ac, size = 42.dp, radius = 14.dp, iconSize = 21.dp, background = c.acSoft)
+                            Column(Modifier.weight(1f)) {
+                                Text("Merge $duplicateCount duplicate rule${if (duplicateCount == 1) "" else "s"}", style = XType.bodyStrong, color = c.tx)
+                                Text("Same category & display name", style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            items(grouped, key = { "g_${it.first.id}" }) { (category, catRules) ->
+                RuleGroupCard(category, catRules, category.id in expanded, { viewModel.toggleRuleCategory(category.id) }) { viewModel.openRule(it.id) }
+            }
+            if (rules.isEmpty()) {
+                item { EmptyState(Icons.Rounded.Rule, "No auto-rules yet", "Rules map SMS keywords to a category automatically.", actionText = "Add a rule", onAction = { showAddRule = true }) }
             }
         }
     }
 
-    if (showAddRuleDialog) {
-        DarkAddRuleDialog(
-            categories = categories,
-            onDismiss = { showAddRuleDialog = false },
-            onConfirm = { keyword, categoryId, label ->
-                viewModel.addRule(keyword, categoryId, label)
-                showAddRuleDialog = false
-            }
-        )
+    if (showAddRule) {
+        DarkAddRuleDialog(categories = categories, onDismiss = { showAddRule = false }, onConfirm = { kw, catId, label ->
+            viewModel.addRule(kw, catId, label); showAddRule = false; toast.show("Rule added")
+        })
     }
-
     if (showMergeConfirm) {
         ConfirmDialog(
-            title = "Merge duplicate rules",
-            message = "Rules sharing a category and display label will be combined into one (keywords joined with “|”). Existing transactions are unaffected.",
+            title = "Merge duplicate rules?",
+            message = "Rules sharing a category and display name will be combined into one (keywords joined with “|”). Existing transactions are unaffected.",
             confirmLabel = "Merge",
-            onConfirm = {
-                viewModel.mergeDuplicateRules()
-                showMergeConfirm = false
-            },
+            icon = Icons.AutoMirrored.Rounded.MergeType,
+            destructive = false,
+            onConfirm = { viewModel.mergeDuplicateRules(); showMergeConfirm = false },
             onDismiss = { showMergeConfirm = false }
         )
     }
-
-    if (showAddCategoryDialog) {
-        DarkAddCategoryDialog(
-            onDismiss = { showAddCategoryDialog = false },
-            onConfirm = { name, icon ->
-                viewModel.addCategory(name, icon)
-                showAddCategoryDialog = false
-            }
-        )
+    if (showAddCategory) {
+        CategoryEditorDialog(onDismiss = { showAddCategory = false }, onConfirm = { name, icon ->
+            viewModel.addCategory(name, icon); showAddCategory = false; toast.show("Category created")
+        })
     }
-
     editingCategory?.let { cat ->
-        DarkAddCategoryDialog(
-            initialName = cat.name,
-            initialIcon = cat.iconName,
-            title = "Edit Category",
-            confirmLabel = "Save",
-            onDismiss = { editingCategory = null },
-            onConfirm = { name, icon ->
-                viewModel.updateCategory(cat.id, name, icon)
-                editingCategory = null
-            }
-        )
+        CategoryEditorDialog(cat.name, cat.iconName, editing = true, color = CategoryUtils.getCategoryColor(cat), onDismiss = { editingCategory = null }, onConfirm = { name, icon ->
+            viewModel.updateCategory(cat.id, name, icon); editingCategory = null
+        })
     }
-
     deletingCategory?.let { cat ->
-        AlertDialog(
-            onDismissRequest = { deletingCategory = null },
-            containerColor = DarkCard,
-            title = { Text("Delete Category", color = TextPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Delete \"${cat.name}\"? Its transactions and auto-rules will be moved to \"Others\".",
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteCategory(cat)
-                        deletingCategory = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = RedNegative)
-                ) { Text("Delete", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { deletingCategory = null }) { Text("Cancel", color = TextSecondary) }
-            }
+        ConfirmDialog(
+            title = "Delete “${cat.name}”?",
+            message = "Its transactions and auto-rules will move to “Others”.",
+            onConfirm = { viewModel.deleteCategory(cat); deletingCategory = null },
+            onDismiss = { deletingCategory = null }
         )
     }
 }
 
-/** Collapsible section header for one category on the Auto-Rules tab. */
 @Composable
-private fun RuleCategoryHeader(
+private fun CategoryTile(
     category: Category,
-    count: Int,
-    expanded: Boolean,
-    onClick: () -> Unit
-) {
-    val color = CategoryUtils.getCategoryColor(category)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (expanded) DarkSurface else DarkCard)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(color.copy(alpha = 0.15f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(18.dp))
-        }
-        Text(
-            category.name,
-            color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Text("$count", color = TextMuted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Icon(
-            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = if (expanded) "Collapse" else "Expand",
-            tint = TextMuted, modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-/**
- * One rule in the Auto-Rules list. Shows the rule's display name and how many keywords it holds —
- * never the raw keyword string, which for a 56-alternative rule rendered taller than the screen and
- * pushed the category/label out of view. Tapping opens the keyword list.
- */
-@Composable
-fun DarkRuleItem(rule: CategoryRule, category: Category, onClick: () -> Unit) {
-    val color = CategoryUtils.getCategoryColor(category)
-    val count = splitAlternatives(rule.keyword).size
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(DarkCard)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            // Single line + ellipsis: no rule can ever make this row grow again.
-            Text(
-                rule.label?.takeIf { it.isNotBlank() } ?: rule.keyword,
-                color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                "$count keyword${if (count == 1) "" else "s"}",
-                color = TextMuted, fontSize = 12.sp, maxLines = 1
-            )
-        }
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
-            tint = color, modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun DarkCategoryItem(
-    category: Category,
+    spent: Double,
+    modifier: Modifier,
     canDelete: Boolean,
+    onOpen: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val c = XpenseTheme.colors
     val color = CategoryUtils.getCategoryColor(category)
-    var menuExpanded by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    GlassCard(
+        modifier, radius = 22.dp, contentPadding = PaddingValues(16.dp),
+        borderColor = if (menu) c.ac else c.line,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        onClick = onOpen,
+        decoration = Modifier.topRightGlow(color, 0.25f, 55.dp)
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            IconTile(CategoryUtils.getCategoryIcon(category), color, Modifier.weight(1f, fill = false))
+            Spacer(Modifier.weight(1f))
+            Box {
+                Box(
+                    Modifier.offset(x = 8.dp, y = (-6).dp).size(32.dp).clip(RoundedCornerShape(11.dp))
+                        .background(if (menu) c.acSoft else Color.Transparent).clickable { menu = true },
+                    contentAlignment = Alignment.Center
+                ) { XIcon(Icons.Rounded.MoreHoriz, 20.dp, if (menu) c.ac else c.tx2) }
+                DropdownMenu(
+                    expanded = menu, onDismissRequest = { menu = false },
+                    shape = RoundedCornerShape(18.dp), containerColor = c.bg2, border = BorderStroke(1.dp, c.line),
+                    offset = DpOffset(0.dp, 4.dp)
+                ) {
+                    MenuRow(Icons.Rounded.Edit, "Edit category") { menu = false; onEdit() }
+                    MenuRow(Icons.Rounded.ReceiptLong, "View transactions") { menu = false; onOpen() }
+                    Box(Modifier.padding(horizontal = 12.dp, vertical = 4.dp).width(160.dp).height(1.dp).background(c.line))
+                    MenuRow(Icons.Rounded.Delete, if (canDelete) "Delete" else "Can't delete", tint = if (canDelete) c.neg else c.tx3, enabled = canDelete) { menu = false; onDelete() }
+                }
+            }
+        }
+        Column {
+            Text(category.name, style = XType.bodyStrong, color = c.tx, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(CurrencyUtils.rupees(spent), style = XType.monoS, color = c.tx2, modifier = Modifier.padding(top = 3.dp))
+        }
+    }
+}
 
-    Box {
+@Composable
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, tint: Color = XpenseTheme.colors.tx, enabled: Boolean = true, onClick: () -> Unit) {
+    val c = XpenseTheme.colors
+    DropdownMenuItem(
+        text = { Text(text, style = XType.smallStrong, color = tint) },
+        leadingIcon = { XIcon(icon, 18.dp, if (tint == c.tx) c.tx2 else tint) },
+        onClick = onClick,
+        enabled = enabled
+    )
+}
+
+@Composable
+private fun RuleGroupCard(category: Category, rules: List<CategoryRule>, open: Boolean, onToggle: () -> Unit, onRule: (CategoryRule) -> Unit) {
+    val c = XpenseTheme.colors
+    val color = CategoryUtils.getCategoryColor(category)
+    val rot by animateFloatAsState(if (open) 180f else 0f, label = "chev")
+    GlassCard(Modifier.fillMaxWidth(), radius = 20.dp, contentPadding = PaddingValues(0.dp)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(DarkCard)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { menuExpanded = true }
-                )
-                .padding(16.dp),
+            Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(color.copy(alpha = 0.15f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(CategoryUtils.getCategoryIcon(category), null, tint = color, modifier = Modifier.size(20.dp))
-            }
-            Text(
-                category.name,
-                color = TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.Default.MoreVert,
-                "More options",
-                tint = TextMuted,
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable { menuExpanded = true }
-            )
+            IconTile(CategoryUtils.getCategoryIcon(category), color, size = 38.dp, radius = 12.dp, iconSize = 19.dp)
+            Text(category.name, style = XType.bodyStrong, color = c.tx, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(rules.size.toString(), style = XType.monoS, color = c.tx2, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.card2).padding(horizontal = 8.dp, vertical = 3.dp))
+            XIcon(Icons.Rounded.ExpandMore, 20.dp, c.tx2, Modifier.rotate(rot))
         }
-
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false },
-            containerColor = DarkSurface
-        ) {
-            DropdownMenuItem(
-                text = { Text("Edit", color = TextPrimary) },
-                leadingIcon = { Icon(Icons.Default.Edit, null, tint = PurpleLight, modifier = Modifier.size(18.dp)) },
-                onClick = {
-                    menuExpanded = false
-                    onEdit()
-                }
-            )
-            if (canDelete) {
-                DropdownMenuItem(
-                    text = { Text("Delete", color = RedNegative) },
-                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = RedNegative, modifier = Modifier.size(18.dp)) },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
+        if (open) {
+            Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                rules.forEach { rule ->
+                    val n = splitAlternatives(rule.keyword).size
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.card2).clickable { onRule(rule) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(rule.label?.takeIf { it.isNotBlank() } ?: rule.keyword, style = XType.smallStrong, color = c.tx, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("$n keyword${if (n == 1) "" else "s"}", style = XType.micro, color = c.tx2, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        XIcon(Icons.Rounded.ChevronRight, 18.dp, c.ac)
                     }
-                )
+                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** "Map keyword" dialog: keywords (with `,` / `|` syntax), optional display name, category. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DarkAddRuleDialog(
     categories: List<Category>,
     initialKeyword: String = "",
     initialLabel: String = "",
     initialCategoryId: Long? = null,
-    title: String = "Map Keyword to Category",
-    confirmLabel: String = "Add Rule",
+    title: String = "Map keyword",
+    confirmLabel: String = "Add rule",
     onDismiss: () -> Unit,
     onConfirm: (String, Long, String?) -> Unit
 ) {
+    val c = XpenseTheme.colors
     var keyword by remember { mutableStateOf(initialKeyword) }
     var label by remember { mutableStateOf(initialLabel) }
     var selectedCategoryId by remember {
-        mutableStateOf(initialCategoryId ?: categories.firstOrNull()?.id ?: 0L)
+        mutableStateOf(initialCategoryId ?: categories.firstOrNull { it.name.equals("Others", true).not() }?.id ?: categories.firstOrNull()?.id ?: 0L)
     }
-    var expanded by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text(title, color = TextPrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = keyword,
-                    onValueChange = { keyword = it },
-                    label = { Text("Keywords (comma = all must match, | = alternatives)", color = TextSecondary) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PurplePrimary,
-                        unfocusedBorderColor = DarkBorder,
-                        focusedContainerColor = DarkSurface,
-                        unfocusedContainerColor = DarkSurface,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it },
-                    label = { Text("Display name (optional, e.g. MF SIP)", color = TextSecondary) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PurplePrimary,
-                        unfocusedBorderColor = DarkBorder,
-                        focusedContainerColor = DarkSurface,
-                        unfocusedContainerColor = DarkSurface,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-                    OutlinedTextField(
-                        value = categories.find { it.id == selectedCategoryId }?.name ?: "Select",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category", color = TextSecondary) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = PurplePrimary,
-                            unfocusedBorderColor = DarkBorder,
-                            focusedContainerColor = DarkSurface,
-                            unfocusedContainerColor = DarkSurface,
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary
-                        )
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                        containerColor = DarkSurface
-                    ) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat.name, color = TextPrimary) },
-                                onClick = { selectedCategoryId = cat.id ; expanded = false }
-                            )
-                        }
-                    }
-                }
+    XDialog(onDismiss) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            IconTile(Icons.Rounded.Rule, c.ac, size = 48.dp, radius = 16.dp, iconSize = 24.dp, background = c.acSoft)
+            Column {
+                Text(title, style = XType.h3.copy(fontSize = XType.h3.fontSize * 0.95f), color = c.tx, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Auto-categorize matching SMS", style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp))
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(keyword, selectedCategoryId, label.ifBlank { null }) },
-                enabled = keyword.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
         }
-    )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            XTextField(keyword, { keyword = it }, "Keywords", leadingIcon = Icons.Rounded.Key, leadingTint = c.ac, mono = true)
+            Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SyntaxKey(","); Text("all must match", style = XType.micro, color = c.tx2)
+                Spacer(Modifier.width(6.dp))
+                SyntaxKey("|"); Text("alternatives", style = XType.micro, color = c.tx2)
+            }
+        }
+        XTextField(label, { label = it }, "Display name (optional, e.g. MF SIP)", leadingIcon = Icons.AutoMirrored.Rounded.Label)
+        Overline("Category", Modifier.offset(x = (-4).dp))
+        FlowRow(Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            categories.forEach { cat ->
+                CategoryChip(cat.name, CategoryUtils.getCategoryIcon(cat), CategoryUtils.getCategoryColor(cat), cat.id == selectedCategoryId, { selectedCategoryId = cat.id })
+            }
+        }
+        DialogButtons(confirmLabel, { onConfirm(keyword.trim(), selectedCategoryId, label.ifBlank { null }) }, onDismiss, confirmEnabled = keyword.isNotBlank())
+    }
 }
 
 @Composable
-fun DarkAddCategoryDialog(
+private fun SyntaxKey(k: String) {
+    val c = XpenseTheme.colors
+    Text(k, style = XType.monoS, color = c.tx, modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(c.card2).padding(horizontal = 6.dp, vertical = 1.dp))
+}
+
+/** Create or edit a category: live preview, name, and an icon grid. */
+@Composable
+fun CategoryEditorDialog(
     initialName: String = "",
     initialIcon: String = "Category",
-    title: String = "Create Category",
-    confirmLabel: String = "Create",
+    editing: Boolean = false,
+    color: Color? = null,
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit
 ) {
+    val c = XpenseTheme.colors
     var name by remember { mutableStateOf(initialName) }
-    var selectedIcon by remember { mutableStateOf(initialIcon) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text(title, color = TextPrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Category Name", color = TextSecondary) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PurplePrimary,
-                        unfocusedBorderColor = DarkBorder,
-                        focusedContainerColor = DarkSurface,
-                        unfocusedContainerColor = DarkSurface,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
-                Text("Pick an Icon", color = TextSecondary, fontSize = 13.sp)
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(48.dp),
-                    modifier = Modifier.height(220.dp)
-                ) {
-                    items(CategoryUtils.availableIcons) { iconName ->
-                        val isSel = selectedIcon == iconName
-                        Box(
-                            modifier = Modifier
-                                .padding(4.dp)
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSel) PurplePrimary.copy(alpha = 0.2f) else DarkSurface)
-                                .clickable { selectedIcon = iconName },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                CategoryUtils.getIconByName(iconName), null,
-                                tint = if (isSel) PurpleLight else TextMuted,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                }
+    var icon by remember { mutableStateOf(initialIcon) }
+    // A new category's colour is assigned from its id once saved, so preview it in the accent.
+    val preview = color ?: c.ac
+    XDialog(onDismiss) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(
+                Modifier.size(56.dp).shadow(12.dp, RoundedCornerShape(18.dp), ambientColor = preview, spotColor = preview)
+                    .clip(RoundedCornerShape(18.dp)).background(c.bg2).background(preview.copy(alpha = 0.14f)).border(1.dp, preview, RoundedCornerShape(18.dp)),
+                contentAlignment = Alignment.Center
+            ) { XIcon(CategoryUtils.getIconByName(icon), 28.dp, preview) }
+            Column {
+                Text(if (editing) "Edit category" else "New category", style = XType.h3, color = c.tx)
+                Text(name.ifBlank { "Category name" }, style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(name, selectedIcon) },
-                enabled = name.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
-            ) { Text(confirmLabel) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
         }
-    )
+        XTextField(name, { name = it }, "Category name")
+        Overline("Icon", Modifier.offset(x = (-4).dp))
+        LazyVerticalGrid(GridCells.Fixed(5), Modifier.height(196.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(CategoryUtils.availableIcons) { ic ->
+                val on = ic == icon
+                val shape = RoundedCornerShape(14.dp)
+                Box(
+                    Modifier.aspectRatio(1f).clip(shape).background(if (on) c.acSoft else c.card2).border(1.dp, if (on) c.ac else c.line, shape).clickable { icon = ic },
+                    contentAlignment = Alignment.Center
+                ) { XIcon(CategoryUtils.getIconByName(ic), 22.dp, if (on) c.ac else c.tx2) }
+            }
+        }
+        DialogButtons(if (editing) "Save" else "Create category", { onConfirm(name.trim(), icon) }, onDismiss, confirmEnabled = name.isNotBlank())
+    }
 }
+
+/** Kept for callers that create a category inline (the expense sheet). */
+@Composable
+fun DarkAddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) =
+    CategoryEditorDialog(onDismiss = onDismiss, onConfirm = onConfirm)

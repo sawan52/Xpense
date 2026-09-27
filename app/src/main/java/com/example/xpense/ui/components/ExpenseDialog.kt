@@ -1,49 +1,45 @@
 package com.example.xpense.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Notes
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.Expense
 import com.example.xpense.ui.DarkAddCategoryDialog
-import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.components.design.*
+import com.example.xpense.ui.theme.XType
+import com.example.xpense.ui.theme.XpenseTheme
 import com.example.xpense.ui.utils.CategoryUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Add (expense == null) or edit an expense. */
 @Composable
 fun AddExpenseBottomSheet(
     expense: Expense? = null,
     categories: List<Category>,
     onDismiss: () -> Unit,
     onConfirm: (amount: Double, merchant: String, categoryId: Long, date: Long, note: String?) -> Unit,
-    // When provided, a trailing "+" pill in the category row creates a category inline.
+    // When provided, a trailing "+ New" chip in the category row creates a category inline.
     onAddCategory: ((name: String, icon: String) -> Unit)? = null,
     // When true, a secondary "Add a rule for this" button appears (for SMS rows with no rule yet).
     showAddRule: Boolean = false,
@@ -51,18 +47,21 @@ fun AddExpenseBottomSheet(
     // When true, a "Force auto rule" button appears (for SMS rows whose matching rule the user has
     // manually overridden). Mutually exclusive with showAddRule.
     showForceRule: Boolean = false,
-    onForceRule: () -> Unit = {}
+    onForceRule: () -> Unit = {},
+    // Edit mode only: archive / delete this transaction.
+    onArchive: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
-    var amount by remember { mutableStateOf(expense?.amount?.takeIf { it > 0 }?.toString() ?: "") }
+    val c = XpenseTheme.colors
+    var amount by remember { mutableStateOf(expense?.amount?.takeIf { it > 0 }?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var merchant by remember { mutableStateOf(expense?.merchant ?: "") }
-    var selectedCategoryId by remember {
-        mutableStateOf(expense?.categoryId ?: categories.firstOrNull()?.id ?: 0L)
-    }
+    var selectedCategoryId by remember { mutableStateOf(expense?.categoryId ?: categories.firstOrNull()?.id ?: 0L) }
     var dateMillis by remember { mutableStateOf(expense?.date ?: System.currentTimeMillis()) }
     var note by remember { mutableStateOf(expense?.note ?: "") }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showAddCategory by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     // Name of a just-created category to auto-select once it appears in the reactive list.
     var pendingSelectName by remember { mutableStateOf<String?>(null) }
 
@@ -75,293 +74,90 @@ fun AddExpenseBottomSheet(
         }
     }
 
-    val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = dateMillis,
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long) =
-                utcTimeMillis <= System.currentTimeMillis()
-        }
-    )
-    val cal = Calendar.getInstance().apply { timeInMillis = dateMillis }
-    val timePickerState = rememberTimePickerState(
-        initialHour = cal.get(Calendar.HOUR_OF_DAY),
-        initialMinute = cal.get(Calendar.MINUTE)
-    )
-    val dateFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-    val timeFmt = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
-    val isValid = amount.toDoubleOrNull() != null && merchant.isNotBlank()
+    val parsed = amount.toDoubleOrNull()
+    val isValid = parsed != null && parsed > 0
+    val selectedCategory = categories.find { it.id == selectedCategoryId }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        // Open fully expanded so the multi-field form has room and fields stay clear of the keyboard.
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = DarkCard,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = {
-            Box(
-                Modifier
-                    .padding(top = 12.dp, bottom = 4.dp)
-                    .width(36.dp).height(4.dp)
-                    .background(DarkBorder, CircleShape)
-            )
-        }
+    XBottomSheet(
+        onDismiss = onDismiss,
+        title = if (expense == null) "Add expense" else "Edit expense",
+        subtitle = if (expense == null) "Track every rupee you spend" else "Changes apply to this transaction only"
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                // Scroll + imePadding so the keyboard never hides the focused field: the content
-                // scrolls and the focused text field is auto-brought into view above the keyboard.
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 36.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding(),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        if (expense == null) "Add Expense" else "Edit Expense",
-                        color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold
-                    )
-                    Text("Track every rupee you spend ✨", color = TextSecondary, fontSize = 13.sp)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(DarkSurface, CircleShape)
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Close, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                }
-            }
-
             // Amount
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Amount", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(DarkSurface, RoundedCornerShape(16.dp))
-                        .border(1.dp, DarkBorder, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("₹", color = TextSecondary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(8.dp))
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (amount.isEmpty()) {
-                            Text("0.00", color = TextMuted, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                        }
-                        BasicTextField(
-                            value = amount,
-                            onValueChange = { raw ->
-                                val clean = raw.filter { it.isDigit() || it == '.' }
-                                if (clean.count { it == '.' } <= 1) amount = clean
-                            },
-                            textStyle = TextStyle(
-                                color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold
-                            ),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            cursorBrush = SolidColor(PurpleLight)
-                        )
-                    }
-                    Icon(Icons.Default.Calculate, null, tint = TextMuted, modifier = Modifier.size(22.dp))
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Text("₹", style = XType.displayS.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Normal), color = c.tx2)
+                Spacer(Modifier.width(4.dp))
+                Box(Modifier.width(IntrinsicSize.Min).widthIn(min = 60.dp, max = 240.dp), contentAlignment = Alignment.Center) {
+                    val style = XType.display.copy(fontSize = XType.display.fontSize * 1.4f, textAlign = TextAlign.Center, color = c.tx)
+                    if (amount.isEmpty()) Text("0", style = style.copy(color = c.tx3))
+                    BasicTextField(
+                        value = amount,
+                        onValueChange = { raw ->
+                            val clean = raw.filter { it.isDigit() || it == '.' }
+                            if (clean.count { it == '.' } <= 1 && clean.length <= 10) amount = clean
+                        },
+                        textStyle = style,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        cursorBrush = SolidColor(c.ac),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
-            // Category pills
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Category", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Text("Choose a category", color = TextMuted, fontSize = 12.sp)
+            // Category chips
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(categories, key = { it.id }) { cat ->
+                    CategoryChip(cat.name, CategoryUtils.getCategoryIcon(cat), CategoryUtils.getCategoryColor(cat), cat.id == selectedCategoryId, { selectedCategoryId = cat.id }, large = true)
                 }
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(categories) { cat ->
-                        val isSelected = cat.id == selectedCategoryId
-                        val color = CategoryUtils.getCategoryColor(cat)
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (isSelected) PurplePrimary.copy(alpha = 0.12f) else DarkSurface,
-                                    RoundedCornerShape(14.dp)
-                                )
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) PurplePrimary else DarkBorder,
-                                    shape = RoundedCornerShape(14.dp)
-                                )
-                                .clickable { selectedCategoryId = cat.id }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                if (onAddCategory != null) {
+                    item { CategoryChip("New", Icons.Rounded.Add, c.ac, false, { showAddCategory = true }, large = true) }
+                }
+            }
+
+            XTextField(merchant, { merchant = it }, "Where did you spend?", leadingIcon = Icons.Rounded.Storefront, bordered = false)
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PickerTile(Icons.Rounded.CalendarToday, SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(dateMillis)), false, Modifier.weight(1f)) { showDatePicker = true }
+                PickerTile(Icons.Rounded.Schedule, SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(dateMillis)), true, Modifier.weight(1f)) { showTimePicker = true }
+            }
+
+            XTextField(note, { note = it }, "Add a note (optional)", leadingIcon = Icons.AutoMirrored.Rounded.Notes, bordered = false)
+
+            XButton(
+                "Save expense",
+                {
+                    val name = merchant.trim().ifBlank { selectedCategory?.name ?: "Expense" }
+                    onConfirm(parsed!!, name, selectedCategoryId, dateMillis, note.trim().ifBlank { null })
+                },
+                Modifier.fillMaxWidth(),
+                enabled = isValid,
+                height = 56.dp,
+                radius = 18.dp,
+                textStyle = XType.section
+            )
+
+            if (showAddRule) XButton("Add a rule for this", onAddRule, Modifier.fillMaxWidth(), style = BtnStyle.Outline, icon = Icons.Rounded.AddTask)
+            if (showForceRule) XButton("Force auto rule", onForceRule, Modifier.fillMaxWidth(), style = BtnStyle.Outline, icon = Icons.Rounded.AutoFixHigh)
+
+            if (onArchive != null || onDelete != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (onArchive != null) XButton("Archive", onArchive, Modifier.weight(1f), style = BtnStyle.Secondary, icon = Icons.Rounded.Archive)
+                    if (onDelete != null) {
+                        Row(
+                            Modifier.weight(1f).height(50.dp).clip(RoundedCornerShape(16.dp)).background(c.neg.copy(alpha = 0.12f))
+                                .clickable { confirmDelete = true },
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(color.copy(alpha = 0.2f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    CategoryUtils.getCategoryIcon(cat), null,
-                                    tint = color, modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(Modifier.height(5.dp))
-                            Text(
-                                cat.name,
-                                color = if (isSelected) PurpleLight else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
+                            XIcon(Icons.Rounded.Delete, 20.dp, c.neg)
+                            Text("Delete", style = XType.bodyStrong, color = c.neg)
                         }
                     }
-                    if (onAddCategory != null) {
-                        item {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(DarkSurface, RoundedCornerShape(14.dp))
-                                    .border(1.dp, DarkBorder, RoundedCornerShape(14.dp))
-                                    .clickable { showAddCategory = true }
-                                    .padding(horizontal = 14.dp, vertical = 10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(PurplePrimary.copy(alpha = 0.2f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Add, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-                                }
-                                Spacer(Modifier.height(5.dp))
-                                Text("New", color = TextSecondary, fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Merchant
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Merchant", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                SheetTextField(
-                    value = merchant,
-                    onValueChange = { merchant = it },
-                    placeholder = "Where did you spend?",
-                    leadingIcon = {
-                        Icon(Icons.Default.Store, null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                    }
-                )
-            }
-
-            // Date + Time
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Date", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    SheetTextField(
-                        value = dateFmt.format(Date(dateMillis)),
-                        onValueChange = {},
-                        readOnly = true,
-                        onClick = { showDatePicker = true },
-                        leadingIcon = {
-                            Icon(Icons.Default.CalendarToday, null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                        }
-                    )
-                }
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Time", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    SheetTextField(
-                        value = timeFmt.format(Date(dateMillis)),
-                        onValueChange = {},
-                        readOnly = true,
-                        onClick = { showTimePicker = true },
-                        leadingIcon = {
-                            Icon(Icons.Default.Schedule, null, tint = TextMuted, modifier = Modifier.size(18.dp))
-                        }
-                    )
-                }
-            }
-
-            // Note
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Note (Optional)", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                SheetTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    placeholder = "Add a note",
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.Notes, null, tint = TextMuted, modifier = Modifier.size(20.dp))
-                    }
-                )
-            }
-
-            // Save button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (isValid) Brush.linearGradient(listOf(PurplePrimary, PurpleLight))
-                        else Brush.linearGradient(listOf(DarkSurface, DarkSurface))
-                    )
-                    .clickable(enabled = isValid) {
-                        onConfirm(amount.toDouble(), merchant.trim(), selectedCategoryId, dateMillis, note.trim().ifBlank { null })
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Save Expense",
-                    color = if (isValid) Color.White else TextMuted,
-                    fontSize = 16.sp, fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Shortcut to create a rule for this merchant (shown only for SMS rows with no rule).
-            if (showAddRule) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, PurplePrimary, RoundedCornerShape(16.dp))
-                        .clickable { onAddRule() }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.AddTask, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add a rule for this", color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // Re-apply the matching rule, discarding this manual override (shown only for SMS rows
-            // whose rule the user has diverged from). Resets category + merchant, keeps amount/note.
-            if (showForceRule) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(1.dp, PurplePrimary, RoundedCornerShape(16.dp))
-                        .clickable { onForceRule() }
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.AutoFixHigh, null, tint = PurpleLight, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Force auto rule", color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -372,98 +168,36 @@ fun AddExpenseBottomSheet(
             onDismiss = { showAddCategory = false },
             onConfirm = { name, icon ->
                 onAddCategory(name, icon)
-                pendingSelectName = name  // auto-select once the new category lands in the list
+                pendingSelectName = name
                 showAddCategory = false
             }
         )
     }
-
     if (showDatePicker) {
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { picked ->
-                        val cur = Calendar.getInstance().apply { timeInMillis = dateMillis }
-                        val sel = Calendar.getInstance().apply { timeInMillis = picked }
-                        sel.set(Calendar.HOUR_OF_DAY, cur.get(Calendar.HOUR_OF_DAY))
-                        sel.set(Calendar.MINUTE, cur.get(Calendar.MINUTE))
-                        dateMillis = sel.timeInMillis
-                    }
-                    showDatePicker = false
-                }) { Text("OK", color = PurpleLight) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel", color = TextSecondary) }
-            },
-            colors = DatePickerDefaults.colors(containerColor = DarkCard)
-        ) { DatePicker(state = datePickerState) }
+        XDatePickerDialog(dateMillis, { showDatePicker = false }) { dateMillis = it; showDatePicker = false }
     }
-
     if (showTimePicker) {
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            containerColor = DarkCard,
-            title = { Text("Select Time", color = TextPrimary) },
-            text = { TimePicker(state = timePickerState) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val c = Calendar.getInstance().apply { timeInMillis = dateMillis }
-                    c.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                    c.set(Calendar.MINUTE, timePickerState.minute)
-                    dateMillis = c.timeInMillis
-                    showTimePicker = false
-                }) { Text("OK", color = PurpleLight) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel", color = TextSecondary) }
-            }
+        XTimePickerDialog(dateMillis, { showTimePicker = false }) { dateMillis = it; showTimePicker = false }
+    }
+    if (confirmDelete && onDelete != null) {
+        ConfirmDialog(
+            title = "Delete this transaction?",
+            message = "This can't be undone. Archive it instead to just hide it from your totals.",
+            onConfirm = { confirmDelete = false; onDelete() },
+            onDismiss = { confirmDelete = false }
         )
     }
 }
 
-// ── Shared outlined text field style for the sheet ──────────────────────────
 @Composable
-fun SheetTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "",
-    readOnly: Boolean = false,
-    onClick: (() -> Unit)? = null,
-    leadingIcon: @Composable (() -> Unit)? = null,
-    keyboardType: KeyboardType = KeyboardType.Text
-) {
-    Box(modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            readOnly = readOnly,
-            placeholder = { Text(placeholder, color = TextMuted, fontSize = 14.sp) },
-            leadingIcon = leadingIcon,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = PurplePrimary,
-                unfocusedBorderColor = DarkBorder,
-                focusedContainerColor = DarkSurface,
-                unfocusedContainerColor = DarkSurface,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                cursorColor = PurpleLight
-            )
-        )
-        // A read-only TextField still swallows tap/focus, so a .clickable on the field itself
-        // never fires. Overlay a transparent layer on top to intercept taps for picker fields.
-        if (onClick != null) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable { onClick() }
-            )
-        }
+private fun PickerTile(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, mono: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = XpenseTheme.colors
+    Row(
+        modifier.height(52.dp).clip(RoundedCornerShape(16.dp)).background(c.card2).clickable(onClick = onClick).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        XIcon(icon, 20.dp, c.ac)
+        Text(text, style = if (mono) XType.mono.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Normal) else XType.body, color = c.tx, maxLines = 1)
     }
 }

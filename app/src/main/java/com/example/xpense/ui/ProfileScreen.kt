@@ -3,247 +3,110 @@ package com.example.xpense.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.components.design.*
+import com.example.xpense.ui.theme.XType
+import com.example.xpense.ui.theme.XpenseTheme
 import com.example.xpense.ui.utils.CurrencyUtils
 
 @Composable
 fun ProfileScreen(viewModel: ExpenseViewModel) {
-    val allExpenses by viewModel.allExpenses.collectAsState()
-    val pendingNotificationCount by viewModel.pendingNotificationCount.collectAsState()
+    val c = XpenseTheme.colors
+    val active   by viewModel.activeExpenses.collectAsState()
+    val pending  by viewModel.pendingNotificationCount.collectAsState()
     val userName by viewModel.userName.collectAsState()
-    // Stats reflect actual spending, so ignored rows (self-transfers etc.) are left out.
-    val countedExpenses = allExpenses.filter { !it.expense.ignored }
-    val totalAmount = countedExpenses.sumOf { it.expense.amount }
+    val email    by viewModel.signedInEmail.collectAsState()
+    val dark     by viewModel.isDarkTheme.collectAsState()
+    val budget   by viewModel.monthlyBudget.collectAsState()
+    var editBudget by remember { mutableStateOf(false) }
 
-    // Read the real version from the installed package so the displayed value can never drift from
-    // versionName in build.gradle.kts the way a hardcoded string did.
+    // Stats reflect actual spending, so archived rows (self-transfers etc.) are left out.
+    val total = active.sumOf { it.expense.amount }
+    // Read the real version from the installed package so it can never drift from build.gradle.kts.
     val context = LocalContext.current
     val appVersion = remember {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: ""
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: ""
     }
+    LaunchedEffect(Unit) { viewModel.refreshBackupState() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBg)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // ── Header ────────────────────────────────────────────────────────
-        Text(
-            "Profile",
-            color = TextPrimary,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-        )
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item { TitleHeader("Profile") }
 
-        // ── Avatar card ───────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(DarkCard)
-                .padding(24.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(
-                            Brush.linearGradient(listOf(PurplePrimary, PurpleLight)),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(userName.firstOrNull()?.uppercase() ?: "U", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        item {
+            GlassCard(Modifier.fillMaxWidth(), radius = 28.dp, contentPadding = PaddingValues(20.dp), decoration = Modifier.topRightGlow(c.ac, 0.3f, 110.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(
+                        Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(c.ac, c.ac2))),
+                        contentAlignment = Alignment.Center
+                    ) { Text(userName.firstOrNull()?.uppercase() ?: "U", style = XType.h2.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold), color = Color.White) }
+                    Column(Modifier.weight(1f)) {
+                        Text(userName, style = XType.section.copy(fontSize = 17.sp), color = c.tx)
+                        Text(email ?: "Personal account", style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp), maxLines = 1)
+                    }
                 }
-                Column {
-                    Text(userName, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Personal Account", color = TextSecondary, fontSize = 13.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        StatChip("${countedExpenses.size}", "Transactions")
-                        StatChip("₹${CurrencyUtils.format(totalAmount, 0)}", "Total Spent")
+                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile(active.size.toString(), "Transactions", Modifier.weight(1f))
+                    StatTile(CurrencyUtils.compact(total), "Total spent", Modifier.weight(1f))
+                }
+            }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Overline("Appearance")
+                GlassCard(Modifier.fillMaxWidth(), radius = 22.dp, contentPadding = PaddingValues(16.dp), onClick = { viewModel.setDarkTheme(!dark) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        IconTile(if (dark) Icons.Rounded.DarkMode else Icons.Rounded.LightMode, c.ac, size = 42.dp, radius = 14.dp, iconSize = 21.dp, background = c.acSoft)
+                        Column(Modifier.weight(1f)) {
+                            Text(if (dark) "Dark mode" else "Light mode", style = XType.bodyStrong, color = c.tx)
+                            Text(if (dark) "Easy on the eyes at night" else "Bright and crisp by day", style = XType.caption, color = c.tx2, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        ThemeSwitch(dark) { viewModel.setDarkTheme(!dark) }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
-
-        // ── Settings section ──────────────────────────────────────────────
-        Text(
-            "Settings",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(DarkCard)
-        ) {
-            ProfileMenuItem(
-                icon = Icons.AutoMirrored.Filled.HelpOutline,
-                iconColor = PurplePrimary,
-                title = "Help & Guide",
-                subtitle = "Learn how every feature works",
-                onClick = { viewModel.navigateTo(Screen.HELP) }
-            )
-            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
-            ProfileMenuItem(
-                icon = Icons.Default.Sync,
-                iconColor = CategoryTravelColor,
-                title = "Sync SMS History",
-                subtitle = "Import last 6 months of bank SMS",
-                onClick = { viewModel.startHistoricalSync() }
-            )
-            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
-            ProfileMenuItem(
-                icon = Icons.Default.Archive,
-                iconColor = CategoryHealthColor,
-                title = "Archived Transactions",
-                subtitle = "View & restore archived transactions",
-                onClick = { viewModel.navigateTo(Screen.IGNORED) }
-            )
-            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
-            ProfileMenuItem(
-                icon = Icons.Default.CloudUpload,
-                iconColor = CategoryTravelColor,
-                title = "Backup & Restore",
-                subtitle = "Back up your data to Google Drive",
-                onClick = { viewModel.navigateTo(Screen.BACKUP) }
-            )
-            HorizontalDivider(color = DarkBorder, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
-            ProfileMenuItem(
-                icon = Icons.Default.Notifications,
-                iconColor = CategoryEntertainmentColor,
-                title = "Notifications",
-                subtitle = "Alerts for uncategorized transactions",
-                badgeCount = pendingNotificationCount,
-                onClick = { viewModel.navigateTo(Screen.NOTIFICATIONS) }
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Text(
-            "About",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(DarkCard)
-        ) {
-            ProfileMenuItem(
-                icon = Icons.Default.Info,
-                iconColor = CategoryBillsColor,
-                title = "App Version",
-                subtitle = appVersion,
-                onClick = {},
-                showArrow = false
-            )
-        }
-
-        Spacer(Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun StatChip(value: String, label: String) {
-    Column {
-        Text(value, color = PurpleLight, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = TextMuted, fontSize = 11.sp)
-    }
-}
-
-@Composable
-private fun ProfileMenuItem(
-    icon: ImageVector,
-    iconColor: Color,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    showArrow: Boolean = true,
-    badgeCount: Int = 0
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(iconColor.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, null, tint = iconColor, modifier = Modifier.size(20.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = TextMuted, fontSize = 12.sp)
-        }
-        if (badgeCount > 0) {
-            Box(
-                modifier = Modifier
-                    .background(PurplePrimary, CircleShape)
-                    .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
-                    .padding(horizontal = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    if (badgeCount > 99) "99+" else "$badgeCount",
-                    color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold
-                )
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Overline("Settings")
+                GlassCard(Modifier.fillMaxWidth(), radius = 22.dp, contentPadding = PaddingValues(0.dp)) {
+                    SettingRow(Icons.AutoMirrored.Rounded.HelpOutline, Color(0xFF60A5FA), "Help & guide", "Learn how every feature works", { viewModel.navigateTo(Screen.HELP) })
+                    SettingRow(Icons.Rounded.Sms, Color(0xFF22D3EE), "Sync SMS history", "Import last 6 months of bank SMS", { viewModel.startHistoricalSync() }, showDivider = true)
+                    SettingRow(
+                        Icons.Rounded.Savings, Color(0xFF34D399), "Monthly budget",
+                        if (budget > 0) "${CurrencyUtils.rupees(budget)} a month" else "Not set — track what's left",
+                        { editBudget = true }, showDivider = true
+                    )
+                    SettingRow(Icons.Rounded.Inventory2, Color(0xFF4ADE80), "Archived transactions", "View & restore archived", { viewModel.navigateTo(Screen.IGNORED) }, showDivider = true)
+                    SettingRow(Icons.Rounded.CloudSync, Color(0xFFA78BFA), "Backup & restore", "Back up to Google Drive", { viewModel.navigateTo(Screen.BACKUP) }, showDivider = true)
+                    SettingRow(Icons.Rounded.Notifications, Color(0xFFFACC15), "Notifications", "Alerts for uncategorized", { viewModel.navigateTo(Screen.NOTIFICATIONS) }, showDivider = true, badge = pending)
+                }
             }
-            Spacer(Modifier.width(4.dp))
         }
-        if (showArrow) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForwardIos, null,
-                tint = TextMuted, modifier = Modifier.size(14.dp)
-            )
+
+        item {
+            Text("Xpense · v$appVersion", style = XType.caption, color = c.tx3, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
+    }
+
+    if (editBudget) {
+        BudgetDialog(budget, onDismiss = { editBudget = false }) { viewModel.setMonthlyBudget(it); editBudget = false }
     }
 }

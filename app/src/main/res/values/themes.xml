@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Xpense" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- The in-app theme (dark by default, light by user choice) is applied by Compose; the window
+         background only matters for the split second before the first frame. -->
+    <style name="Theme.Xpense" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/xpense_launch_bg</item>
+    </style>
 </resources>

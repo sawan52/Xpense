@@ -6,35 +6,44 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.xpense.ui.*
 import com.example.xpense.ui.components.AddExpenseBottomSheet
-import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.components.design.*
+import com.example.xpense.ui.theme.XType
+import com.example.xpense.ui.theme.XpenseTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
@@ -53,261 +62,256 @@ class MainActivity : ComponentActivity() {
         intentFlow.value = intent
     }
 
+    private fun applySystemBars(dark: Boolean) {
+        val style = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        applySystemBars(true)
         intentFlow.value = intent
         setContent {
-            com.example.xpense.ui.theme.XpenseTheme {
-                val viewModel: ExpenseViewModel = viewModel()
-                val currentScreen by viewModel.currentScreen.collectAsState()
-                val canNavigateBack by viewModel.canNavigateBack.collectAsState()
-                val categories    by viewModel.allCategories.collectAsState()
+            val viewModel: ExpenseViewModel = viewModel()
+            val dark by viewModel.isDarkTheme.collectAsState()
+            LaunchedEffect(dark) { applySystemBars(dark) }
 
-                // Global back: pop the navigation history one screen at a time so back retraces the
-                // path the user took. Disabled at the HOME root so the system default runs and the
-                // app exits. Screen-level handlers (e.g. selection mode) compose deeper and take
-                // priority over this one, so they still intercept back first when active.
-                BackHandler(enabled = canNavigateBack) { viewModel.navigateBack() }
-
-                val context = LocalContext.current
-                fun hasPermission(p: String) =
-                    ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
-
-                var hasSmsPermission by remember {
-                    mutableStateOf(
-                        hasPermission(Manifest.permission.RECEIVE_SMS) &&
-                        hasPermission(Manifest.permission.READ_SMS)
-                    )
+            XpenseTheme(dark = dark) {
+                val toast = remember { ToastState() }
+                CompositionLocalProvider(LocalToast provides toast) {
+                    XpenseApp(viewModel, toast)
                 }
-                val permissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions()
-                ) { results -> hasSmsPermission = results.values.all { it } }
+            }
+        }
+    }
 
-                LaunchedEffect(Unit) {
-                    if (!hasSmsPermission) {
-                        permissionLauncher.launch(arrayOf(
-                            Manifest.permission.RECEIVE_SMS,
-                            Manifest.permission.READ_SMS
-                        ))
+    @Composable
+    private fun XpenseApp(viewModel: ExpenseViewModel, toast: ToastState) {
+        val currentScreen by viewModel.currentScreen.collectAsState()
+        val canNavigateBack by viewModel.canNavigateBack.collectAsState()
+        val categories by viewModel.allCategories.collectAsState()
+        val searchScope by viewModel.searchScope.collectAsState()
+
+        // Global back: pop the navigation history one screen at a time so back retraces the path
+        // the user took. Disabled at the HOME root so the system default runs and the app exits.
+        // Screen-level handlers (selection mode, search) compose deeper and take priority.
+        BackHandler(enabled = canNavigateBack) { viewModel.navigateBack() }
+
+        val context = LocalContext.current
+        fun hasPermission(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
+
+        var hasSmsPermission by remember {
+            mutableStateOf(hasPermission(Manifest.permission.RECEIVE_SMS) && hasPermission(Manifest.permission.READ_SMS))
+        }
+        val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            hasSmsPermission = results.values.all { it }
+        }
+        LaunchedEffect(Unit) {
+            if (!hasSmsPermission) permissionLauncher.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS))
+        }
+
+        // Notification permission is requested separately and its result is intentionally ignored —
+        // denial must never block the app, unlike SMS access above.
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        LaunchedEffect(Unit) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        // Route a notification tap into a pre-filled Add-Rule dialog.
+        val pendingRuleKeyword by viewModel.pendingRuleKeyword.collectAsState()
+        val latestIntent by intentFlow.collectAsState()
+        LaunchedEffect(latestIntent) {
+            latestIntent?.getStringExtra(EXTRA_RULE_KEYWORD)?.let { keyword ->
+                viewModel.requestRulePrefill(keyword)
+                // Consume it so a config change / recomposition doesn't re-open the dialog.
+                latestIntent?.removeExtra(EXTRA_RULE_KEYWORD)
+            }
+        }
+
+        var showAddSheet by remember { mutableStateOf(false) }
+
+        GlowBackground(Modifier.fillMaxSize()) {
+            if (hasSmsPermission) {
+                Crossfade(currentScreen, Modifier.fillMaxSize().statusBarsPadding(), animationSpec = tween(220), label = "screen") { screen ->
+                    when (screen) {
+                        Screen.HOME            -> SummaryScreen(viewModel)
+                        Screen.INSIGHTS        -> ExpenseScreen(viewModel)
+                        Screen.INSIGHTS_DETAIL -> InsightsDetailScreen(viewModel)
+                        Screen.CATEGORY_DETAIL -> CategoryDetailScreen(viewModel)
+                        Screen.PROFILE         -> ProfileScreen(viewModel)
+                        Screen.CATEGORY_RULES  -> CategoryRuleScreen(viewModel)
+                        Screen.RULE_DETAIL     -> RuleDetailScreen(viewModel)
+                        Screen.IGNORED         -> IgnoredTransactionsScreen(viewModel)
+                        Screen.BACKUP          -> BackupScreen(viewModel)
+                        Screen.NOTIFICATIONS   -> NotificationsScreen(viewModel)
+                        Screen.HELP            -> HelpScreen(viewModel)
                     }
                 }
+                FloatingNavBar(
+                    current = currentScreen,
+                    onNavigate = { viewModel.navigateTo(it) },
+                    onAdd = { showAddSheet = true },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+                // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
+                SyncDialogs(viewModel)
+            } else {
+                PermissionScreen { permissionLauncher.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)) }
+            }
 
-                // Notification permission is requested separately and its result is intentionally
-                // ignored here — denial must never block the app, unlike SMS access above.
-                val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission()
-                ) { /* no-op: TransactionNotifier re-checks before posting */ }
-
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        !hasPermission(Manifest.permission.POST_NOTIFICATIONS)
-                    ) {
-                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
+            AnimatedVisibility(searchScope != null, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) {
+                // Swallow touches so nothing underneath reacts while search is open.
+                Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) {}) {
+                    searchScope?.let { SearchOverlay(viewModel, it) }
                 }
+            }
 
-                // Route a notification tap into a pre-filled Add-Rule dialog.
-                val pendingRuleKeyword by viewModel.pendingRuleKeyword.collectAsState()
-                val latestIntent by intentFlow.collectAsState()
-                LaunchedEffect(latestIntent) {
-                    latestIntent?.getStringExtra(EXTRA_RULE_KEYWORD)?.let { keyword ->
-                        viewModel.requestRulePrefill(keyword)
-                        // Consume it so a config change / recomposition doesn't re-open the dialog.
-                        latestIntent?.removeExtra(EXTRA_RULE_KEYWORD)
+            ToastHost(toast, Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp))
+        }
+
+        if (showAddSheet) {
+            AddExpenseBottomSheet(
+                categories = categories,
+                onDismiss = { showAddSheet = false },
+                onConfirm = { amount, merchant, categoryId, date, note ->
+                    viewModel.addExpense(amount, merchant, categoryId, date, note)
+                    showAddSheet = false
+                    toast.show("Expense saved")
+                },
+                onAddCategory = { name, icon -> viewModel.addCategory(name, icon) }
+            )
+        }
+
+        EditExpenseHost(viewModel, toast)
+
+        // Opened from a "new uncategorized transaction" notification tap (or the Notifications
+        // inbox / edit sheet): the Add-Rule dialog pre-filled with the merchant as the keyword.
+        pendingRuleKeyword?.let { keyword ->
+            if (hasSmsPermission) {
+                DarkAddRuleDialog(
+                    categories = categories,
+                    initialKeyword = keyword,
+                    title = "Create rule for “$keyword”",
+                    onDismiss = { viewModel.clearRulePrefill() },
+                    onConfirm = { kw, categoryId, label ->
+                        viewModel.addRule(kw, categoryId, label)
+                        viewModel.clearRulePrefill()
+                        toast.show("Rule added")
                     }
-                }
-
-                var showAddSheet by remember { mutableStateOf(false) }
-
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = DarkBg,
-                    bottomBar = {
-                        if (hasSmsPermission) {
-                            XpenseBottomBar(
-                                currentScreen = currentScreen,
-                                onNavigate = { viewModel.navigateTo(it) },
-                                onAddClick = { showAddSheet = true }
-                            )
-                        }
-                    }
-                ) { innerPadding ->
-                    if (hasSmsPermission) {
-                        Box(modifier = Modifier.padding(innerPadding)) {
-                            when (currentScreen) {
-                                Screen.HOME           -> SummaryScreen(viewModel, onAddExpense = { showAddSheet = true })
-                                Screen.INSIGHTS       -> ExpenseScreen(viewModel)
-                                Screen.INSIGHTS_DETAIL -> InsightsDetailScreen(viewModel)
-                                Screen.PROFILE        -> ProfileScreen(viewModel)
-                                Screen.CATEGORY_RULES -> CategoryRuleScreen(viewModel)
-                                Screen.RULE_DETAIL    -> RuleDetailScreen(viewModel)
-                                Screen.IGNORED        -> IgnoredTransactionsScreen(viewModel)
-                                Screen.BACKUP         -> BackupScreen(viewModel)
-                                Screen.NOTIFICATIONS  -> NotificationsScreen(viewModel)
-                                Screen.HELP           -> HelpScreen(viewModel)
-                            }
-                        }
-                        // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
-                        SyncDialogs(viewModel)
-                    } else {
-                        // Permission denied state
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(DarkBg)
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Icon(Icons.Default.Sms, null, tint = PurpleLight, modifier = Modifier.size(64.dp))
-                                Text("SMS Permission Required", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Xpense needs SMS access to automatically track your bank transactions.",
-                                    color = TextSecondary,
-                                    fontSize = 14.sp
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(Brush.linearGradient(listOf(PurplePrimary, PurpleLight)))
-                                        .clickable {
-                                            permissionLauncher.launch(arrayOf(
-                                                Manifest.permission.RECEIVE_SMS,
-                                                Manifest.permission.READ_SMS
-                                            ))
-                                        }
-                                        .padding(horizontal = 32.dp, vertical = 14.dp)
-                                ) {
-                                    Text("Grant Permission", color = Color.White, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (showAddSheet) {
-                    AddExpenseBottomSheet(
-                        categories = categories,
-                        onDismiss = { showAddSheet = false },
-                        onConfirm = { amount, merchant, categoryId, date, note ->
-                            viewModel.addExpense(amount, merchant, categoryId, date, note)
-                            showAddSheet = false
-                        },
-                        onAddCategory = { name, icon -> viewModel.addCategory(name, icon) }
-                    )
-                }
-
-                // Opened from a "new uncategorized transaction" notification tap: reuse the same
-                // Add-Rule dialog as Settings, pre-filled with the merchant as the keyword.
-                pendingRuleKeyword?.let { keyword ->
-                    if (hasSmsPermission) {
-                        DarkAddRuleDialog(
-                            categories = categories,
-                            initialKeyword = keyword,
-                            title = "Create rule for \"$keyword\"",
-                            onDismiss = { viewModel.clearRulePrefill() },
-                            onConfirm = { kw, categoryId, label ->
-                                viewModel.addRule(kw, categoryId, label)
-                                viewModel.clearRulePrefill()
-                            }
-                        )
-                    }
-                }
+                )
             }
         }
     }
 }
 
-// ── Bottom navigation bar ────────────────────────────────────────────────────
+/** The edit sheet, shared by every screen that lists transactions (see ExpenseViewModel.editExpense). */
 @Composable
-fun XpenseBottomBar(
-    currentScreen: Screen,
-    onNavigate: (Screen) -> Unit,
-    onAddClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(DarkCard)
-            .navigationBarsPadding()
-    ) {
+private fun EditExpenseHost(viewModel: ExpenseViewModel, toast: ToastState) {
+    val editingId by viewModel.editingExpenseId.collectAsState()
+    val all by viewModel.allExpenses.collectAsState()
+    val categories by viewModel.allCategories.collectAsState()
+    val id = editingId ?: return
+    val editing = all.find { it.expense.id == id }?.expense ?: return
+    fun close() {
+        viewModel.closeEditExpense()
+        viewModel.exitSelectionMode()
+    }
+    key(id) {
+        val manual = editing.rawSms == "Manual Entry" || editing.rawSms == "Manual Update"
+        AddExpenseBottomSheet(
+            expense = editing,
+            categories = categories,
+            onDismiss = { close() },
+            onConfirm = { amount, merchant, categoryId, date, note ->
+                viewModel.updateExpense(editing.id, amount, merchant, categoryId, date, note)
+                close()
+                toast.show("Changes saved")
+            },
+            onAddCategory = { name, icon -> viewModel.addCategory(name, icon) },
+            showAddRule = !manual && !viewModel.hasUserRuleFor(editing),
+            onAddRule = { close(); viewModel.requestRulePrefill(editing.merchant) },
+            showForceRule = viewModel.forcibleRuleFor(editing) != null,
+            onForceRule = { close(); viewModel.forceRule(editing.id) },
+            onArchive = if (editing.ignored) null else ({ viewModel.setIgnored(editing.id, true); close(); toast.show("Archived") }),
+            onDelete = { viewModel.deleteExpense(editing.id); close(); toast.show("Transaction deleted") }
+        )
+    }
+}
+
+// ── Floating bottom navigation ───────────────────────────────────────────────
+
+private data class NavTab(val screen: Screen, val label: String, val icon: ImageVector)
+
+private val leftTabs = listOf(NavTab(Screen.HOME, "Home", Icons.Rounded.Home), NavTab(Screen.INSIGHTS, "Insights", Icons.Rounded.BarChart))
+private val rightTabs = listOf(NavTab(Screen.CATEGORY_RULES, "Categories", Icons.Rounded.Category), NavTab(Screen.PROFILE, "Profile", Icons.Rounded.Person))
+
+/** Which tab a (possibly nested) screen belongs to, for the active indicator. */
+private fun tabOf(screen: Screen): Screen = when (screen) {
+    Screen.INSIGHTS_DETAIL, Screen.CATEGORY_DETAIL -> Screen.INSIGHTS
+    Screen.RULE_DETAIL -> Screen.CATEGORY_RULES
+    Screen.IGNORED, Screen.BACKUP, Screen.HELP -> Screen.PROFILE
+    else -> screen
+}
+
+@Composable
+private fun FloatingNavBar(current: Screen, onNavigate: (Screen) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    val c = XpenseTheme.colors
+    val active = tabOf(current)
+    Box(modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 12.dp).height(86.dp)) {
+        val shape = RoundedCornerShape(26.dp)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(72.dp)
+                .shadow(20.dp, shape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.25f))
+                .clip(shape).background(c.nav).border(1.dp, c.line, shape),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavBarItem(
-                icon = Icons.Default.Home,
-                label = "Home",
-                selected = currentScreen == Screen.HOME,
-                onClick = { onNavigate(Screen.HOME) }
-            )
-            NavBarItem(
-                icon = Icons.Default.BarChart,
-                label = "Insights",
-                selected = currentScreen == Screen.INSIGHTS,
-                onClick = { onNavigate(Screen.INSIGHTS) }
-            )
-            // Centre FAB
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(PurplePrimary, PurpleLight)))
-                    .clickable(onClick = onAddClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Add, "Add expense", tint = Color.White, modifier = Modifier.size(28.dp))
-            }
-            NavBarItem(
-                icon = Icons.Default.Category,
-                label = "Categories",
-                selected = currentScreen == Screen.CATEGORY_RULES,
-                onClick = { onNavigate(Screen.CATEGORY_RULES) }
-            )
-            NavBarItem(
-                icon = Icons.Default.Person,
-                label = "Profile",
-                selected = currentScreen == Screen.PROFILE,
-                onClick = { onNavigate(Screen.PROFILE) }
-            )
+            leftTabs.forEach { NavItem(it, it.screen == active, Modifier.weight(1f)) { onNavigate(it.screen) } }
+            Spacer(Modifier.width(76.dp))
+            rightTabs.forEach { NavItem(it, it.screen == active, Modifier.weight(1f)) { onNavigate(it.screen) } }
         }
+        val fab = RoundedCornerShape(20.dp)
+        Box(
+            Modifier.align(Alignment.TopCenter).size(72.dp).clip(RoundedCornerShape(26.dp)).background(c.bg).padding(6.dp)
+                .shadow(16.dp, fab, ambientColor = c.ac, spotColor = c.ac)
+                .clip(fab).background(Brush.linearGradient(listOf(c.ac, c.ac2)))
+                .clickable(onClick = onAdd),
+            contentAlignment = Alignment.Center
+        ) { XIcon(Icons.Rounded.Add, 30.dp, Color.White) }
     }
 }
 
 @Composable
-private fun NavBarItem(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+private fun NavItem(tab: NavTab, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = XpenseTheme.colors
+    val tint = if (selected) c.ac else c.tx2
     Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+        modifier.fillMaxHeight().clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = if (selected) PurpleLight else TextMuted,
-            modifier = Modifier.size(22.dp)
-        )
+        XIcon(tab.icon, 24.dp, tint)
+        Text(tab.label, style = XType.nav, color = tint)
+        Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) c.ac else Color.Transparent))
+    }
+}
+
+@Composable
+private fun PermissionScreen(onGrant: () -> Unit) {
+    val c = XpenseTheme.colors
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().padding(28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+    ) {
+        DialogBadge(Icons.Rounded.Sms, size = 72.dp)
+        Text("SMS access needed", style = XType.h2, color = c.tx)
         Text(
-            text = label,
-            color = if (selected) PurpleLight else TextMuted,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            "Xpense reads your bank's transaction SMS to track spending automatically. Messages never leave your phone.",
+            style = XType.body, color = c.tx2, textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+        XButton("Grant permission", onGrant, Modifier.padding(top = 8.dp).fillMaxWidth(), height = 54.dp, radius = 18.dp)
     }
 }

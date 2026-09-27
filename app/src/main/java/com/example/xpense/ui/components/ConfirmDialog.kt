@@ -1,20 +1,20 @@
 package com.example.xpense.ui.components
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.text.font.FontWeight
-import com.example.xpense.ui.theme.DarkCard
-import com.example.xpense.ui.theme.RedNegative
-import com.example.xpense.ui.theme.TextPrimary
-import com.example.xpense.ui.theme.TextSecondary
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.xpense.ui.components.design.BtnStyle
+import com.example.xpense.ui.components.design.DialogBadge
+import com.example.xpense.ui.components.design.DialogButtons
+import com.example.xpense.ui.components.design.DialogTitle
+import com.example.xpense.ui.components.design.XDialog
+import com.example.xpense.ui.theme.XpenseTheme
 
 /**
- * Reusable yes/no confirmation dialog, styled for the dark theme. Guards destructive actions
- * (deleting transactions, auto-rules) so nothing is removed in a single accidental tap.
+ * Reusable yes/no confirmation dialog. Guards destructive actions (deleting transactions,
+ * auto-rules) so nothing is removed in a single accidental tap. Destructive by default (red badge
+ * and button); pass [destructive] = false for neutral confirmations.
  */
 @Composable
 fun ConfirmDialog(
@@ -22,21 +22,20 @@ fun ConfirmDialog(
     message: String,
     confirmLabel: String = "Delete",
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    icon: ImageVector = Icons.Rounded.Delete,
+    destructive: Boolean = true
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkCard,
-        title = { Text(title, color = TextPrimary, fontWeight = FontWeight.Bold) },
-        text = { Text(message, color = TextSecondary) },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = RedNegative)
-            ) { Text(confirmLabel, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
-        }
-    )
+    val c = XpenseTheme.colors
+    XDialog(onDismiss) {
+        DialogBadge(icon, if (destructive) c.neg else null)
+        DialogTitle(title, message)
+        DialogButtons(
+            confirmText = confirmLabel,
+            onConfirm = onConfirm,
+            onCancel = onDismiss,
+            confirmStyle = if (destructive) BtnStyle.Danger else BtnStyle.Gradient,
+            confirmWeight = if (destructive) 1f else 1.4f
+        )
+    }
 }

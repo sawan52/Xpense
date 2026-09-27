@@ -13,6 +13,7 @@ import com.example.xpense.data.entity.Expense
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
 import com.example.xpense.data.entity.NotificationItem
+import com.example.xpense.data.prefs.AppPrefs
 import com.example.xpense.notifications.TransactionNotifier
 import com.example.xpense.sms.SmsParser
 import com.example.xpense.sms.SyncManager
@@ -26,8 +27,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 enum class Screen {
-    HOME, INSIGHTS, INSIGHTS_DETAIL, PROFILE, CATEGORY_RULES, RULE_DETAIL, IGNORED, BACKUP,
-    NOTIFICATIONS, HELP
+    HOME, INSIGHTS, INSIGHTS_DETAIL, CATEGORY_DETAIL, PROFILE, CATEGORY_RULES, RULE_DETAIL, IGNORED,
+    BACKUP, NOTIFICATIONS, HELP
 }
 
 /** UI status for the Backup & Restore screen. */
@@ -49,6 +50,84 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val prefs = application.getSharedPreferences(
         TransactionNotifier.PREFS_NAME, Context.MODE_PRIVATE
     )
+    private val appPrefs = AppPrefs(application)
+
+    // ── Appearance & budget ──────────────────────────────────────────────────
+    private val _isDarkTheme = MutableStateFlow(appPrefs.darkTheme)
+    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+
+    fun setDarkTheme(dark: Boolean) {
+        appPrefs.darkTheme = dark
+        _isDarkTheme.value = dark
+    }
+
+    private val _monthlyBudget = MutableStateFlow(appPrefs.monthlyBudget)
+    /** Monthly budget in rupees; 0 = not set. */
+    val monthlyBudget: StateFlow<Double> = _monthlyBudget.asStateFlow()
+
+    fun setMonthlyBudget(amount: Double) {
+        val v = amount.coerceAtLeast(0.0)
+        appPrefs.monthlyBudget = v
+        _monthlyBudget.value = v
+    }
+
+    // ── Global search overlay ────────────────────────────────────────────────
+    // Non-null while the overlay is open; the value is the scope it opened with.
+    private val _searchScope = MutableStateFlow<SearchScope?>(null)
+    val searchScope: StateFlow<SearchScope?> = _searchScope.asStateFlow()
+
+    fun openSearch(scope: SearchScope = SearchScope.ALL) { _searchScope.value = scope }
+    fun closeSearch() { _searchScope.value = null }
+
+    private val _recentSearches = MutableStateFlow(appPrefs.recentSearches)
+    val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
+
+    fun addRecentSearch(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        val next = (listOf(q) + _recentSearches.value.filterNot { it.equals(q, ignoreCase = true) })
+            .take(AppPrefs.MAX_RECENT)
+        appPrefs.recentSearches = next
+        _recentSearches.value = next
+    }
+
+    fun removeRecentSearch(query: String) {
+        val next = _recentSearches.value - query
+        appPrefs.recentSearches = next
+        _recentSearches.value = next
+    }
+
+    fun clearRecentSearches() {
+        appPrefs.recentSearches = emptyList()
+        _recentSearches.value = emptyList()
+    }
+
+    // ── Edit sheet (hoisted so Home, Insights, Category detail and Search can all open it) ──
+    private val _editingExpenseId = MutableStateFlow<Long?>(null)
+    val editingExpenseId: StateFlow<Long?> = _editingExpenseId.asStateFlow()
+
+    fun editExpense(id: Long) { _editingExpenseId.value = id }
+    fun closeEditExpense() { _editingExpenseId.value = null }
+
+    fun deleteExpense(id: Long) {
+        viewModelScope.launch { expenseDao.deleteExpenses(listOf(id)) }
+    }
+
+    // ── Category detail ──────────────────────────────────────────────────────
+    private val _selectedCategoryId = MutableStateFlow<Long?>(null)
+    val selectedCategoryId: StateFlow<Long?> = _selectedCategoryId.asStateFlow()
+
+    fun openCategory(id: Long) {
+        _selectedCategoryId.value = id
+        navigateTo(Screen.CATEGORY_DETAIL)
+    }
+
+    // ── Filter & sort (Insights transaction list) ────────────────────────────
+    private val _txFilter = MutableStateFlow(TxFilter())
+    val txFilter: StateFlow<TxFilter> = _txFilter.asStateFlow()
+
+    fun setTxFilter(filter: TxFilter) { _txFilter.value = filter }
+    fun clearTxFilter() { _txFilter.value = TxFilter() }
 
     // Started eagerly (not WhileSubscribed) because hasUserRuleFor() reads .value synchronously to
     // decide whether to show the edit-sheet "Add a rule" button. The screens that call it (History,
@@ -191,28 +270,13 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val _expandedRuleCategories = MutableStateFlow<Set<Long>>(emptySet())
     val expandedRuleCategories: StateFlow<Set<Long>> = _expandedRuleCategories.asStateFlow()
 
-    // Which sub-tab the Categories screen is showing, and its rule search. Held here for the same
-    // reason as the expanded sections above: opening a rule destroys CategoryRuleScreen, so
-    // composable-local state snapped back to the Categories tab (and cleared the search) every time
-    // you came back from a rule — or rotated the phone.
+    // Which sub-tab the Categories screen is showing. Held here for the same reason as the
+    // expanded sections above: opening a rule destroys CategoryRuleScreen, so composable-local
+    // state snapped back to the Categories tab every time you came back from a rule.
     private val _ruleScreenTab = MutableStateFlow(0)
     val ruleScreenTab: StateFlow<Int> = _ruleScreenTab.asStateFlow()
 
     fun selectRuleScreenTab(index: Int) { _ruleScreenTab.value = index }
-
-    private val _ruleSearchActive = MutableStateFlow(false)
-    val ruleSearchActive: StateFlow<Boolean> = _ruleSearchActive.asStateFlow()
-
-    private val _ruleSearchQuery = MutableStateFlow("")
-    val ruleSearchQuery: StateFlow<String> = _ruleSearchQuery.asStateFlow()
-
-    fun setRuleSearchQuery(query: String) { _ruleSearchQuery.value = query }
-
-    /** Closing the search always clears the query, so reopening it starts empty. */
-    fun setRuleSearchActive(active: Boolean) {
-        _ruleSearchActive.value = active
-        if (!active) _ruleSearchQuery.value = ""
-    }
 
     fun toggleRuleCategory(categoryId: Long) {
         val current = _expandedRuleCategories.value
@@ -409,14 +473,29 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedMonth = MutableStateFlow<String?>(null)
     val selectedMonth: StateFlow<String?> = _selectedMonth.asStateFlow()
 
-    val filteredExpenses: StateFlow<List<ExpenseWithCategory>> = combine(
+    /** Every active transaction in the selected month — drives the month's totals and donut. */
+    val monthExpenses: StateFlow<List<ExpenseWithCategory>> = combine(
         activeExpenses,
         _selectedMonth
     ) { expenses, month ->
         if (month == null) expenses else expenses.filter { monthFormat.format(Date(it.expense.date)) == month }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val totalForSelectedMonth: StateFlow<Double> = filteredExpenses.map {
+    /** Active rows of the calendar month before the selected one (for month-over-month deltas). */
+    val prevMonthExpenses: StateFlow<List<ExpenseWithCategory>> = combine(activeExpenses, _selectedMonth) { expenses, month ->
+        val cal = Calendar.getInstance()
+        month?.let { m -> runCatching { monthFormat.parse(m) }.getOrNull()?.let { cal.time = it } }
+        cal.add(Calendar.MONTH, -1)
+        val prev = monthFormat.format(cal.time)
+        expenses.filter { monthFormat.format(Date(it.expense.date)) == prev }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** The month's transactions after the Filter & sort sheet — drives the Insights list. */
+    val filteredExpenses: StateFlow<List<ExpenseWithCategory>> = combine(monthExpenses, _txFilter) { expenses, f ->
+        applyTxFilter(expenses, f)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val totalForSelectedMonth: StateFlow<Double> = monthExpenses.map {
         it.sumOf { exp -> exp.expense.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
@@ -429,7 +508,7 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             .sumOf { it.expense.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val categorySummaryForSelectedMonth: StateFlow<Map<Category, Double>> = filteredExpenses.map { expenses ->
+    val categorySummaryForSelectedMonth: StateFlow<Map<Category, Double>> = monthExpenses.map { expenses ->
         expenses.groupBy { it.category }
             .mapValues { (_, list) -> list.sumOf { it.expense.amount } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())

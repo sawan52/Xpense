@@ -1,115 +1,55 @@
 package com.example.xpense.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material3.*
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.xpense.ui.theme.*
+import com.example.xpense.ui.components.design.*
+import com.example.xpense.ui.theme.XpenseTheme
 import com.example.xpense.ui.utils.CurrencyUtils
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
- * All ignored transactions in one place, reached from Profile. Rows are grouped by day like
- * History; swipe a row right to un-ignore it and send it back to the main lists (its date is
- * untouched, so it reappears under its original month in Insights automatically).
+ * Archived ("ignored") transactions — self-transfers and the like, hidden from every total.
+ * Restore with the per-row button or by swiping right.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
-    val ignoredExpenses by viewModel.ignoredExpenses.collectAsState()
+    val c = XpenseTheme.colors
+    val ignored by viewModel.ignoredExpenses.collectAsState()
+    val groups = remember(ignored) { groupByDay(ignored) }
 
-    val dayFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
-    val today  = remember { dayFmt.format(Date()) }
-    val grouped = remember(ignoredExpenses) {
-        ignoredExpenses.groupBy { dayFmt.format(Date(it.expense.date)) }
-    }
-
-    Scaffold(
-        containerColor = DarkBg,
-        topBar = {
-            TopAppBar(
-                title = { Text("Archived Transactions", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { BackHeader("Archived", { viewModel.navigateBack() }, subtitle = "${ignored.size} transaction${if (ignored.size == 1) "" else "s"}") }
+        item { InfoBanner(Icons.Rounded.Info, "Archived items are hidden from your totals.", Modifier.padding(top = 8.dp)) }
+        groups.forEach { (label, rows) ->
+            item(key = "h_${rows.first().expense.id}") {
+                Box(Modifier.animateItem().padding(top = 12.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.rupees(rows.sumOf { it.expense.amount })) }
+            }
+            items(rows, key = { it.expense.id }) { row ->
+                SwipeToRestoreRow({ viewModel.setIgnored(row.expense.id, false) }, Modifier.animateItem()) {
+                    ExpenseRow(row, muted = true, onClick = { viewModel.editExpense(row.expense.id) }) {
+                        Box(
+                            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(c.acSoft)
+                                .clickable { viewModel.setIgnored(row.expense.id, false) },
+                            contentAlignment = Alignment.Center
+                        ) { XIcon(Icons.Rounded.Unarchive, 18.dp, c.ac) }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBg),
-                windowInsets = WindowInsets(0, 0, 0, 0)
-            )
+                }
+            }
         }
-    ) { padding ->
-        if (ignoredExpenses.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Archive, null, tint = TextMuted, modifier = Modifier.size(48.dp))
-                    Text("No archived transactions", color = TextMuted, fontSize = 16.sp)
-                    Text("Swipe a transaction left to archive it", color = TextMuted, fontSize = 13.sp)
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                grouped.forEach { (date, items) ->
-                    item(key = "header_$date") {
-                        val label = when (date) {
-                            today -> "Today"
-                            else  -> date
-                        }
-                        val dayTotal = items.sumOf { it.expense.amount }
-                        Row(
-                            modifier = Modifier
-                                .animateItem()
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(label, color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text(
-                                "₹${CurrencyUtils.format(dayTotal, 2)}",
-                                color = TextMuted, fontSize = 12.sp
-                            )
-                        }
-                    }
-                    items(items, key = { it.expense.id }) { item ->
-                        // Swipe right to restore the transaction back into the active lists.
-                        // animateItem() slides the remaining rows up smoothly when this one leaves.
-                        SwipeToRestoreRow(
-                            onRestore = { viewModel.setIgnored(item.expense.id, false) },
-                            modifier = Modifier.animateItem()
-                        ) {
-                            DarkTransactionCard(
-                                item = item,
-                                isSelected = false,
-                                isSelectionMode = false,
-                                onToggle = {},
-                                onLongClick = {}
-                            )
-                        }
-                    }
-                }
-                item { Spacer(Modifier.height(80.dp)) }
-            }
+        if (ignored.isEmpty()) {
+            item { EmptyState(Icons.Rounded.Inventory2, "Nothing archived", "Swipe a transaction left on Insights to archive it.", tinted = false) }
         }
     }
 }
