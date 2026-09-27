@@ -180,7 +180,7 @@ fun SearchOverlay(viewModel: ExpenseViewModel, initialScope: SearchScope) {
                             ResultRow(
                                 CategoryUtils.getCategoryIcon(row.category), CategoryUtils.getCategoryColor(row.category),
                                 row.expense.merchant, q, "${row.category.name} · ${formatCardDate(row.expense.date)}",
-                                "-" + CurrencyUtils.rupees(row.expense.amount)
+                                "-" + CurrencyUtils.exact(row.expense.amount)
                             ) { open { viewModel.editExpense(row.expense.id) } }
                         }
                     }

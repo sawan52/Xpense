@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -74,7 +76,10 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
     }
     val top = summary.maxByOrNull { it.value }
     val insights = remember(monthRows, prevRows) { buildSmartInsights(monthRows, prevRows) }
-    val groups = remember(visible) { groupByDay(visible) }
+    // Day groups only make sense when the list is in date order. Sorted by amount, grouping would
+    // gather same-day rows together and break the order, so it becomes one flat list instead.
+    val byAmount = filter.sort == TxSort.HIGHEST || filter.sort == TxSort.LOWEST
+    val groups = remember(visible, byAmount) { if (byAmount) listOf("" to visible) else groupByDay(visible) }
     val dailyAvg = totalAmount / daysCounted(selectedMonth, monthFmt)
 
     LazyColumn(
@@ -168,16 +173,6 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                         }
                     }
                 }
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.card2)
-                        .clickable { viewModel.navigateTo(Screen.INSIGHTS_DETAIL) }.padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    XIcon(Icons.Rounded.DonutLarge, 19.dp, c.ac)
-                    Text("Explore full breakdown", style = XType.smallStrong, color = c.tx, modifier = Modifier.weight(1f))
-                    XIcon(Icons.AutoMirrored.Rounded.ArrowForward, 19.dp, c.ac)
-                }
             }
         }
 
@@ -186,10 +181,14 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
             item {
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SectionHeader("Smart insights", Gutter)
-                    LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(insights.size) { i ->
-                            val ins = insights[i]
-                            InsightCard(ins, categories, highlighted = i == 0) {
+                    // A plain scrolling Row (at most 4 cards) rather than a LazyRow, so IntrinsicSize.Min
+                    // can give every card the height of the tallest one.
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()).height(IntrinsicSize.Min).padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        insights.forEachIndexed { i, ins ->
+                            InsightCard(ins, categories, highlighted = i == 0, modifier = Modifier.fillMaxHeight()) {
                                 ins.categoryId?.let { viewModel.openCategory(it) }
                             }
                         }
@@ -203,8 +202,10 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
             SectionHeader("Transactions", Gutter.padding(top = 12.dp), trailing = "${visible.size} of ${monthRows.size}".takeIf { filter.isActive } ?: "${visible.size} total")
         }
         groups.forEach { (label, rows) ->
-            item(key = "h_${rows.first().expense.id}") {
-                Box(Gutter.animateItem().padding(top = 8.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.rupees(rows.sumOf { it.expense.amount })) }
+            if (!byAmount && rows.isNotEmpty()) {
+                item(key = "h_${rows.first().expense.id}") {
+                    Box(Gutter.animateItem().padding(top = 8.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.exact(rows.sumOf { it.expense.amount })) }
+                }
             }
             items(rows, key = { it.expense.id }) { row ->
                 SwipeToArchiveRow(
@@ -214,6 +215,8 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                 ) {
                     ExpenseRow(
                         row,
+                        // Without day headers, the date moves into the row itself.
+                        subtitle = if (byAmount) "${row.category.name} · ${formatCardDate(row.expense.date)}" else row.category.name,
                         selectionMode = isSelectionMode,
                         selected = row.expense.id in selectedIds,
                         onClick = { if (isSelectionMode) viewModel.toggleSelection(row.expense.id) else viewModel.editExpense(row.expense.id) },
@@ -257,13 +260,13 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
 
 /** One smart-insight card in the horizontal carousel. */
 @Composable
-fun InsightCard(insight: Insight, categories: List<Category>, highlighted: Boolean, onClick: () -> Unit) {
+fun InsightCard(insight: Insight, categories: List<Category>, highlighted: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = XpenseTheme.colors
     val cat = insight.categoryId?.let { id -> categories.find { it.id == id } }
     val (icon, tint) = insightIcon(insight, cat)
     val shape = RoundedCornerShape(22.dp)
     Column(
-        Modifier.width(230.dp).clip(shape)
+        modifier.width(230.dp).clip(shape)
             .background(if (highlighted) Brush.linearGradient(listOf(c.acSoft, Color.Transparent)) else Brush.linearGradient(listOf(c.card, c.card)))
             .border(1.dp, c.line, shape)
             .clickable(enabled = cat != null, onClick = onClick)

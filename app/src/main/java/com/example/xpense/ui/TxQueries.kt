@@ -110,3 +110,24 @@ fun matchRange(text: String, query: String): IntRange? {
     val i = text.indexOf(q, ignoreCase = true)
     return if (i < 0) null else i until i + q.length
 }
+
+/**
+ * A stored amount as editable text: at most 2 decimals, no trailing zeros, never scientific
+ * notation (Double.toString gives "1.0E7" for ₹1 crore). 41277.0 → "41277", 345.5 → "345.5".
+ */
+fun formatAmountInput(amount: Double): String =
+    java.math.BigDecimal.valueOf(amount).setScale(2, java.math.RoundingMode.HALF_UP)
+        .stripTrailingZeros().toPlainString()
+
+/**
+ * Cleans typed amount text: digits and one '.', at most 2 decimals and 9 whole digits. Returns
+ * null when the edit should be rejected (the field then keeps its previous value).
+ */
+fun sanitizeAmountInput(raw: String): String? {
+    val clean = raw.filter { it.isDigit() || it == '.' }
+    if (clean.count { it == '.' } > 1) return null
+    val whole = clean.substringBefore('.')
+    val frac = if ('.' in clean) clean.substringAfter('.') else ""
+    if (whole.length > 9 || frac.length > 2) return null
+    return clean
+}

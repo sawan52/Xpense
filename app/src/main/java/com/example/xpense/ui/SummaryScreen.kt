@@ -78,8 +78,6 @@ fun SummaryScreen(viewModel: ExpenseViewModel) {
                     Text(greeting, style = XType.caption, color = c.tx2)
                     Text(userName.substringBefore(' '), style = XType.h3.copy(fontSize = XType.h3.fontSize * 0.9f), color = c.tx)
                 }
-                HeaderButton(Icons.Rounded.Search, { viewModel.openSearch(SearchScope.ALL) }, contentDescription = "Search")
-                Spacer(Modifier.width(8.dp))
                 HeaderButton(Icons.Rounded.Notifications, { viewModel.navigateTo(Screen.NOTIFICATIONS) }, dot = unread > 0, contentDescription = "Notifications")
             }
         }
@@ -124,41 +122,28 @@ fun SummaryScreen(viewModel: ExpenseViewModel) {
                     }
                 }
                 Sparkline(spark, Modifier.fillMaxWidth().height(60.dp).padding(top = 10.dp))
-                Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Budget left
-                    Column(
-                        Modifier.weight(1f).height(IntrinsicSize.Min).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.08f))
-                            .clickable { editBudget = true }.padding(12.dp)
-                    ) {
-                        if (budget > 0) {
-                            val left = budget - curTotal
-                            Text(if (left >= 0) "Budget left" else "Over budget", style = XType.micro, color = Color.White.copy(alpha = 0.6f))
+                // Both tiles share one height (the taller one's) and one layout: label on top,
+                // headline + icon pinned to the bottom, so they read as a matched pair.
+                Row(Modifier.padding(top = 14.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (budget > 0) {
+                        val left = budget - curTotal
+                        HeroTile(if (left >= 0) "Budget left" else "Over budget", Modifier.weight(1f), { editBudget = true }) {
                             Text(
                                 if (hidden) "₹ •••" else CurrencyUtils.rupees(kotlin.math.abs(left)),
-                                style = XType.monoM, color = if (left >= 0) Color.White else Color(0xFFFF9BAE), modifier = Modifier.padding(top = 4.dp)
+                                style = XType.monoM, color = if (left >= 0) Color.White else Color(0xFFFF9BAE)
                             )
                             ProgressBar(
                                 (left / budget).toFloat(), Modifier.padding(top = 8.dp),
                                 brush = Brush.horizontalGradient(listOf(c.ac2, Color.White)), track = Color.White.copy(alpha = 0.15f)
                             )
-                        } else {
-                            Text("Monthly budget", style = XType.micro, color = Color.White.copy(alpha = 0.6f))
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                                Text("Set a budget", style = XType.smallStrong, color = Color.White, modifier = Modifier.weight(1f))
-                                XIcon(Icons.Rounded.Add, 18.dp, Color.White)
-                            }
+                        }
+                    } else {
+                        HeroTile("Monthly budget", Modifier.weight(1f), { editBudget = true }) {
+                            HeroTileHeadline("Set budget", Icons.Rounded.Add)
                         }
                     }
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.08f))
-                            .clickable { viewModel.navigateTo(Screen.INSIGHTS) }.padding(12.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Deep dive", style = XType.micro, color = Color.White.copy(alpha = 0.6f))
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
-                            Text("Insights", style = XType.bodyStrong, color = Color.White, modifier = Modifier.weight(1f))
-                            XIcon(Icons.Rounded.ArrowOutward, 20.dp, Color.White)
-                        }
+                    HeroTile("Deep dive", Modifier.weight(1f), { viewModel.navigateTo(Screen.INSIGHTS) }) {
+                        HeroTileHeadline("Insights", Icons.Rounded.ArrowOutward)
                     }
                 }
             }
@@ -175,7 +160,7 @@ fun SummaryScreen(viewModel: ExpenseViewModel) {
                 val fmtOut = remember { SimpleDateFormat("MMM", Locale.getDefault()) }
                 MonthBars(
                     lastSixMonths.map { (m, v) -> BarDatum(runCatching { fmtOut.format(fmtIn.parse(m)!!) }.getOrDefault(m.take(3)), v) },
-                    Modifier.fillMaxWidth().height(130.dp).padding(top = 16.dp),
+                    Modifier.fillMaxWidth().height(200.dp).padding(top = 16.dp),
                     valueLabel = { if (it > 0) CurrencyUtils.compact(it, symbol = false) else "0" }
                 )
             }
@@ -201,6 +186,27 @@ fun SummaryScreen(viewModel: ExpenseViewModel) {
 
     if (editBudget) {
         BudgetDialog(budget, onDismiss = { editBudget = false }) { viewModel.setMonthlyBudget(it); editBudget = false }
+    }
+}
+
+/** One of the two tiles at the bottom of the hero card. */
+@Composable
+private fun HeroTile(label: String, modifier: Modifier, onClick: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier.fillMaxHeight().clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.08f))
+            .clickable(onClick = onClick).padding(12.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = XType.micro, color = Color.White.copy(alpha = 0.6f))
+        Column(Modifier.padding(top = 10.dp), content = content)
+    }
+}
+
+@Composable
+private fun HeroTileHeadline(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, style = XType.bodyStrong, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1)
+        XIcon(icon, 20.dp, Color.White)
     }
 }
 

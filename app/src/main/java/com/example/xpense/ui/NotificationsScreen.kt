@@ -107,7 +107,7 @@ private fun NotificationRow(item: NotificationItem, onRule: () -> Unit, onDismis
             Column(Modifier.weight(1f).clickable(onClick = onRule)) {
                 Text(item.merchant, style = XType.bodyStrong, color = c.tx)
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(CurrencyUtils.rupees(item.amount), style = XType.monoS.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.neg)
+                    Text(CurrencyUtils.exact(item.amount), style = XType.monoS.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold), color = c.neg)
                     Text("·", style = XType.caption, color = c.tx2)
                     Text("Create rule", style = XType.caption, color = c.ac)
                 }

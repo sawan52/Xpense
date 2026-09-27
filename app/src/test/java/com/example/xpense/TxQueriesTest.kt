@@ -9,6 +9,9 @@ import com.example.xpense.ui.TxFilter
 import com.example.xpense.ui.TxSort
 import com.example.xpense.ui.TxSource
 import com.example.xpense.ui.applyTxFilter
+import com.example.xpense.ui.formatAmountInput
+import com.example.xpense.ui.sanitizeAmountInput
+import com.example.xpense.ui.utils.CurrencyUtils
 import com.example.xpense.ui.matchRange
 import com.example.xpense.ui.searchAll
 import org.junit.Assert.assertEquals
@@ -75,5 +78,29 @@ class TxQueriesTest {
         assertEquals(0..2, matchRange("Swiggy", "swi"))
         assertNull(matchRange("Swiggy", "zom"))
         assertNull(matchRange("Swiggy", " "))
+    }
+
+    @Test fun formatAmountInput_twoDecimalsNoScientific() {
+        assertEquals("41277", formatAmountInput(41277.0))
+        assertEquals("345.5", formatAmountInput(345.5))
+        assertEquals("157043.71", formatAmountInput(157043.71))
+        assertEquals("10000000", formatAmountInput(1.0E7))
+        assertEquals("12.35", formatAmountInput(12.345678))
+    }
+
+    @Test fun sanitizeAmountInput_limitsDecimals() {
+        assertEquals("12.34", sanitizeAmountInput("12.34"))
+        assertNull(sanitizeAmountInput("12.345"))
+        assertNull(sanitizeAmountInput("1.2.3"))
+        assertEquals("1500", sanitizeAmountInput("1,500"))
+        assertNull(sanitizeAmountInput("1234567890"))
+    }
+
+    @Test fun exact_showsPaiseOnlyWhenPresent() {
+        assertEquals("₹41,277", CurrencyUtils.exact(41277.0))
+        assertEquals("₹345.50", CurrencyUtils.exact(345.5))
+        // Under ₹1 lakh: the JVM formatter lacks the Indian 2-digit grouping Android applies above that.
+        assertEquals("₹57,043.71", CurrencyUtils.exact(57043.71))
+        assertEquals("₹0.05", CurrencyUtils.exact(0.05))
     }
 }

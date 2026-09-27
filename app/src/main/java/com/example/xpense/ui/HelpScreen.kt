@@ -111,8 +111,7 @@ private val topics = listOf(
             "The hero card shows what you've spent this month, with the change versus last month. Tap the eye to hide the amount.",
             "Set a monthly budget (tap the Budget tile, or Profile → Monthly budget) and the card shows how much is left.",
             "Spending activity charts your last 6 months; the current month is the highlighted bar.",
-            "Recent shows your latest transactions — tap one to edit it, or View all to open Insights.",
-            "The search button finds any transaction, category or rule."
+            "Recent shows your latest transactions — tap one to edit it, or View all to open Insights."
         )
     ),
     HelpTopic(
@@ -120,7 +119,7 @@ private val topics = listOf(
         "The Insights tab is both your spending breakdown and your full transaction list.",
         listOf(
             "Pick a month from the pills at the top. The donut card shows the total, your top category, the daily average and what's excluded (archived).",
-            "Explore full breakdown opens a big donut — tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and top merchants.",
+            "Tap the donut to open the full breakdown — tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and top merchants.",
             "Smart insights are generated from your own spending: big changes, recurring payments, your top category.",
             "Tap the tune button to filter by category, amount or source (SMS or manual) and to sort. Active filters appear as chips you can tap to remove.",
             "Tap a transaction to edit it; long-press to select several and archive or delete them together."

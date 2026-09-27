@@ -34,7 +34,7 @@ fun IgnoredTransactionsScreen(viewModel: ExpenseViewModel) {
         item { InfoBanner(Icons.Rounded.Info, "Archived items are hidden from your totals.", Modifier.padding(top = 8.dp)) }
         groups.forEach { (label, rows) ->
             item(key = "h_${rows.first().expense.id}") {
-                Box(Modifier.animateItem().padding(top = 12.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.rupees(rows.sumOf { it.expense.amount })) }
+                Box(Modifier.animateItem().padding(top = 12.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.exact(rows.sumOf { it.expense.amount })) }
             }
             items(rows, key = { it.expense.id }) { row ->
                 SwipeToRestoreRow({ viewModel.setIgnored(row.expense.id, false) }, Modifier.animateItem()) {

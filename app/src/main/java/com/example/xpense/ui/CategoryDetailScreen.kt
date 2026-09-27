@@ -156,7 +156,7 @@ fun CategoryDetailScreen(viewModel: ExpenseViewModel) {
         }
         groups.forEach { (label, day) ->
             item(key = "h_${day.first().expense.id}") {
-                Box(Gutter.padding(top = 8.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.rupees(day.sumOf { it.expense.amount })) }
+                Box(Gutter.padding(top = 8.dp, bottom = 2.dp)) { DayGroupHeader(label, CurrencyUtils.exact(day.sumOf { it.expense.amount })) }
             }
             items(day, key = { it.expense.id }) { row ->
                 ExpenseRow(

@@ -54,7 +54,7 @@ fun ExpenseRow(
         color = CategoryUtils.getCategoryColor(item.category),
         title = item.expense.merchant,
         subtitle = subtitle,
-        amount = (if (muted) "" else "-") + CurrencyUtils.rupees(item.expense.amount, 0),
+        amount = (if (muted) "" else "-") + CurrencyUtils.exact(item.expense.amount),
         amountColor = if (muted) c.tx2 else c.neg,
         selected = selected,
         modifier = modifier,

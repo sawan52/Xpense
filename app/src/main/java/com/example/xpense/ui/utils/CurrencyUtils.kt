@@ -22,6 +22,15 @@ object CurrencyUtils {
     /** "₹1,56,777" — the design shows whole rupees almost everywhere. */
     fun rupees(amount: Double, decimals: Int = 0): String = "₹" + format(amount, decimals)
 
+    /**
+     * A single transaction's amount, exactly as recorded: paise are shown when present
+     * (₹345.50), and whole amounts stay clean (₹41,277). Totals and averages use [rupees].
+     */
+    fun exact(amount: Double): String {
+        val hasPaise = Math.round(amount * 100) % 100 != 0L
+        return "₹" + format(amount, if (hasPaise) 2 else 0)
+    }
+
     /** Compact ₹ amount for tight spots: 1500 → "₹1.5k", 250000 → "₹2.5L", 2.3e7 → "₹2.3Cr". */
     fun compact(v: Double, symbol: Boolean = true): String {
         val s = when {
