@@ -117,8 +117,12 @@ fun CategoryDetailScreen(viewModel: ExpenseViewModel) {
                     }
                 }
                 MonthBars(
-                    bars, Modifier.fillMaxWidth().height(84.dp).padding(top = 18.dp),
-                    highlight = Brush.verticalGradient(listOf(color, color.copy(alpha = 0.6f))), glow = color, barRadius = 8.dp, gap = 8.dp
+                    bars, Modifier.fillMaxWidth().height(180.dp).padding(top = 18.dp),
+                    valueLabel = { if (it > 0) CurrencyUtils.compact(it, symbol = false) else "0" },
+                    highlight = Brush.verticalGradient(listOf(color, color.copy(alpha = 0.6f))), glow = color, barRadius = 8.dp, gap = 8.dp,
+                    // Past months in a light tint of the category colour: the neutral card2 grey all
+                    // but disappears on this tinted card in light mode.
+                    muted = color.copy(alpha = if (c.isDark) 0.18f else 0.28f)
                 )
             }
         }

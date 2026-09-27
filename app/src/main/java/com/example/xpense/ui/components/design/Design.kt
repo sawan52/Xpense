@@ -608,7 +608,7 @@ fun StatTile(value: String, label: String, modifier: Modifier = Modifier, fill: 
     val shape = RoundedCornerShape(if (bordered) 18.dp else 16.dp)
     Column(
         modifier.clip(shape).background(fill).then(if (bordered) Modifier.border(1.dp, c.line, shape) else Modifier)
-            .padding(horizontal = if (centered) 10.dp else 14.dp, vertical = if (bordered) 14.dp else 12.dp),
+            .padding(horizontal = if (centered) 4.dp else 14.dp, vertical = if (bordered) 14.dp else 12.dp),
         horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start
     ) {
         Text(value, style = valueStyle, color = c.tx, maxLines = 1)

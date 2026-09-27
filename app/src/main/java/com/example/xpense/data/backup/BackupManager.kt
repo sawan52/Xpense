@@ -81,7 +81,7 @@ class BackupManager(private val context: Context) {
             10    -> "Developer error (code 10): the OAuth client's package name/SHA-1 don't match this build"
             12501 -> "Sign-in was cancelled"
             12500 -> "Sign-in failed (code 12500): check the OAuth consent screen and test users"
-            7     -> "Network error — check your connection"
+            7     -> "Network error. Check your connection."
             else  -> "Sign-in failed (code ${e.statusCode})"
         }
         SignInResult(null, hint)

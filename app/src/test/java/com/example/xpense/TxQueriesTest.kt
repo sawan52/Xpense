@@ -10,6 +10,7 @@ import com.example.xpense.ui.TxSort
 import com.example.xpense.ui.TxSource
 import com.example.xpense.ui.applyTxFilter
 import com.example.xpense.ui.formatAmountInput
+import com.example.xpense.ui.indianGrouping
 import com.example.xpense.ui.sanitizeAmountInput
 import com.example.xpense.ui.utils.CurrencyUtils
 import com.example.xpense.ui.matchRange
@@ -102,5 +103,25 @@ class TxQueriesTest {
         // Under ₹1 lakh: the JVM formatter lacks the Indian 2-digit grouping Android applies above that.
         assertEquals("₹57,043.71", CurrencyUtils.exact(57043.71))
         assertEquals("₹0.05", CurrencyUtils.exact(0.05))
+    }
+
+    @Test fun indianGrouping_groupsThreeThenTwo() {
+        assertEquals("0", indianGrouping("0").text)
+        assertEquals("999", indianGrouping("999").text)
+        assertEquals("1,000", indianGrouping("1000").text)
+        assertEquals("12,345", indianGrouping("12345").text)
+        assertEquals("1,23,456", indianGrouping("123456").text)
+        assertEquals("12,34,567.89", indianGrouping("1234567.89").text)
+        assertEquals("12,34,56,789.99", indianGrouping("123456789.99").text)
+        assertEquals("1,234.", indianGrouping("1234.").text)
+        assertEquals("56.39", indianGrouping("56.39").text)
+    }
+
+    @Test fun indianGrouping_mapsCursorPastCommas() {
+        val g = indianGrouping("123456") // "1,23,456"
+        assertEquals(0, g.rawToGrouped[0])
+        assertEquals(2, g.rawToGrouped[1]) // before "2", after the first comma
+        assertEquals(5, g.rawToGrouped[3]) // before "4"
+        assertEquals(8, g.rawToGrouped[6]) // end
     }
 }

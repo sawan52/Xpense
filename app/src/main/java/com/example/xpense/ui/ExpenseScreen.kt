@@ -155,7 +155,7 @@ fun ExpenseScreen(viewModel: ExpenseViewModel) {
                                     Text(top.key.name, style = XType.bodyStrong, color = tc, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 Text("${pct(top.value, totalAmount)}% of spend", style = XType.caption, color = c.tx2)
-                            } else Text("—", style = XType.bodyStrong, color = c.tx3, modifier = Modifier.padding(top = 4.dp))
+                            } else Text("None", style = XType.bodyStrong, color = c.tx3, modifier = Modifier.padding(top = 4.dp))
                         }
                         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
                         Column {

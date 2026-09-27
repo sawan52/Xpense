@@ -91,7 +91,7 @@ fun ProfileScreen(viewModel: ExpenseViewModel) {
                     SettingRow(Icons.Rounded.Sms, Color(0xFF22D3EE), "Sync SMS history", "Import last 6 months of bank SMS", { viewModel.startHistoricalSync() }, showDivider = true)
                     SettingRow(
                         Icons.Rounded.Savings, Color(0xFF34D399), "Monthly budget",
-                        if (budget > 0) "${CurrencyUtils.rupees(budget)} a month" else "Not set — track what's left",
+                        if (budget > 0) "${CurrencyUtils.rupees(budget)} a month" else "Not set yet",
                         { editBudget = true }, showDivider = true
                     )
                     SettingRow(Icons.Rounded.Inventory2, Color(0xFF4ADE80), "Archived transactions", "View & restore archived", { viewModel.navigateTo(Screen.IGNORED) }, showDivider = true)

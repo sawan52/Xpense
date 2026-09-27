@@ -806,8 +806,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             try {
                 backupManager.restore(mode)
                 _backupState.value = BackupUiState.Success(
-                    if (mode == RestoreMode.REPLACE) "Restore complete — data replaced"
-                    else "Restore complete — data merged"
+                    if (mode == RestoreMode.REPLACE) "Restore complete. Data replaced."
+                    else "Restore complete. Data merged."
                 )
             } catch (e: Exception) {
                 android.util.Log.w("XpenseBackup", "Restore failed", e)

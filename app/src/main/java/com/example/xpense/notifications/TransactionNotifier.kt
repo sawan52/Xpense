@@ -59,7 +59,7 @@ object TransactionNotifier {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("New transaction")
-            .setContentText("₹${CurrencyUtils.format(amount, 0)} at $merchant — tap to categorize")
+            .setContentText("₹${CurrencyUtils.format(amount, 0)} at $merchant. Tap to categorize.")
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText("₹${CurrencyUtils.format(amount, 0)} at $merchant\nTap to create a rule and categorize it.")

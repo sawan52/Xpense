@@ -35,7 +35,7 @@ fun buildSmartInsights(month: List<ExpenseWithCategory>, prev: List<ExpenseWithC
             val drivers = rows.groupBy { it.expense.merchant }
                 .mapValues { (_, l) -> l.sumOf { it.expense.amount } }
                 .entries.sortedByDescending { it.value }.take(2).map { it.key }
-            val who = if (diff > 0 && drivers.isNotEmpty()) " — mostly ${drivers.joinToString(" & ")}" else ""
+            val who = if (diff > 0 && drivers.isNotEmpty()) ", mostly ${drivers.joinToString(" & ")}" else ""
             out += Insight(
                 InsightKind.CATEGORY_MOVE,
                 "$name spend ${if (diff > 0) "up" else "down"} $pct%$who",

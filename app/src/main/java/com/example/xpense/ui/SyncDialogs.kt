@@ -39,7 +39,7 @@ fun SyncDialogs(viewModel: ExpenseViewModel) {
     if (progress != null) {
         XDialog({}) {
             DialogBadge(Icons.Rounded.Sms)
-            DialogTitle("Scanning messages…", "Hang tight — this only takes a moment.")
+            DialogTitle("Scanning messages…", "This only takes a moment.")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProgressBar(progress, brush = Brush.horizontalGradient(listOf(c.ac, c.ac2)), height = 6.dp)
                 Text("${(progress * 100).toInt()}% complete", style = XType.monoS, color = c.tx2)

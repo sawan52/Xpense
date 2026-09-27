@@ -148,7 +148,7 @@ fun SearchOverlay(viewModel: ExpenseViewModel, initialScope: SearchScope) {
                     val inScope = results.count(scope)
                     if (inScope == 0 && results.total > 0) {
                         item {
-                            InfoBanner(Icons.Rounded.Info, "No ${scope.label.lowercase()} match — ${results.total} elsewhere", accent = true, action = "Show all", onAction = { scope = SearchScope.ALL })
+                            InfoBanner(Icons.Rounded.Info, "No ${scope.label.lowercase()} match. ${results.total} found in other tabs.", accent = true, action = "Show all", onAction = { scope = SearchScope.ALL })
                         }
                     }
                     if (showCat && results.categories.isNotEmpty()) {

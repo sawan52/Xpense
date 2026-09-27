@@ -9,7 +9,7 @@ import com.example.xpense.data.entity.Expense
 enum class TxSort(val label: String) { NEWEST("Newest"), OLDEST("Oldest"), HIGHEST("Highest"), LOWEST("Lowest") }
 
 enum class AmountRange(val label: String) {
-    ANY("Any"), UNDER_500("< ₹500"), MID("₹500–5k"), OVER_5K("> ₹5k");
+    ANY("Any"), UNDER_500("< ₹500"), MID("₹500 to 5k"), OVER_5K("> ₹5k");
 
     fun matches(amount: Double): Boolean = when (this) {
         ANY -> true
@@ -130,4 +130,28 @@ fun sanitizeAmountInput(raw: String): String? {
     val frac = if ('.' in clean) clean.substringAfter('.') else ""
     if (whole.length > 9 || frac.length > 2) return null
     return clean
+}
+
+/** Grouped display text plus, for every cursor offset in the raw text, its offset in [text]. */
+class GroupedAmount(val text: String, val rawToGrouped: IntArray)
+
+/**
+ * Indian digit grouping for amount *input*: the last three whole digits, then every two
+ * (1234567.89 → "12,34,567.89"). Works on partial input too ("1234." → "1,234."), and keeps the
+ * decimal part untouched. Returns an offset map so a text field can keep the cursor in place.
+ */
+fun indianGrouping(raw: String): GroupedAmount {
+    val dot = raw.indexOf('.')
+    val wholeLen = if (dot < 0) raw.length else dot
+    val out = StringBuilder()
+    val map = IntArray(raw.length + 1)
+    for (i in raw.indices) {
+        // Digits left of this one in the whole part decide whether a comma goes before it.
+        val remaining = wholeLen - i
+        if (i in 1 until wholeLen && (remaining == 3 || (remaining > 3 && (remaining - 3) % 2 == 0))) out.append(',')
+        map[i] = out.length
+        out.append(raw[i])
+    }
+    map[raw.length] = out.length
+    return GroupedAmount(out.toString(), map)
 }

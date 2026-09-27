@@ -98,8 +98,8 @@ private val topics = listOf(
         "Getting started & permissions", Icons.Rounded.RocketLaunch, Color(0xFF34D399),
         "On first launch, Xpense sets up 7 default categories (Food, Shopping, Transport, Bills, Health, Entertainment, Others) and a few starter rules, so it works right away.",
         listOf(
-            "SMS permission is required — it's how Xpense reads your bank's transaction messages. Your messages never leave your phone.",
-            "Notification permission (Android 13+) is optional — it lets Xpense alert you when a transaction needs a category.",
+            "SMS permission is required. It's how Xpense reads your bank's transaction messages. Your messages never leave your phone.",
+            "Notification permission (Android 13+) is optional. It lets Xpense alert you when a transaction needs a category.",
             "Get around with the floating bar: Home, Insights, the centre + to add an expense, Categories, and Profile.",
             "Prefer a lighter look? Switch between dark and light mode under Profile → Appearance."
         )
@@ -111,7 +111,7 @@ private val topics = listOf(
             "The hero card shows what you've spent this month, with the change versus last month. Tap the eye to hide the amount.",
             "Set a monthly budget (tap the Budget tile, or Profile → Monthly budget) and the card shows how much is left.",
             "Spending activity charts your last 6 months; the current month is the highlighted bar.",
-            "Recent shows your latest transactions — tap one to edit it, or View all to open Insights."
+            "Recent shows your latest transactions. Tap one to edit it, or View all to open Insights."
         )
     ),
     HelpTopic(
@@ -119,7 +119,7 @@ private val topics = listOf(
         "The Insights tab is both your spending breakdown and your full transaction list.",
         listOf(
             "Pick a month from the pills at the top. The donut card shows the total, your top category, the daily average and what's excluded (archived).",
-            "Tap the donut to open the full breakdown — tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and top merchants.",
+            "Tap the donut to open the full breakdown. There, tap a slice to see that category, or tap a category to open its detail page with a 6-month trend and top merchants.",
             "Smart insights are generated from your own spending: big changes, recurring payments, your top category.",
             "Tap the tune button to filter by category, amount or source (SMS or manual) and to sort. Active filters appear as chips you can tap to remove.",
             "Tap a transaction to edit it; long-press to select several and archive or delete them together."
@@ -132,7 +132,7 @@ private val topics = listOf(
             "Type the amount, pick a category chip, and say where you spent. Date, time and a note are optional.",
             "Need a category that doesn't exist yet? Tap + New in the category row.",
             "For SMS transactions, “Add a rule for this” teaches Xpense how to categorize similar ones in future.",
-            "If you re-categorize a transaction a rule already covers, “Force auto rule” appears next time — tap it to snap back to what the rule says (amount and note are kept).",
+            "If you re-categorize a transaction a rule already covers, “Force auto rule” appears next time. Tap it to snap back to what the rule says (amount and note are kept).",
             "Archive or delete a transaction from the bottom of its edit sheet."
         )
     ),
@@ -140,11 +140,11 @@ private val topics = listOf(
         "Categories & auto-rules", Icons.Rounded.Category, Color(0xFFA78BFA),
         "Categories group your spending; auto-rules decide which category a transaction lands in. Both live on the Categories tab.",
         listOf(
-            "Each category tile shows this month's spend. Use its ⋯ menu to edit it, view its transactions, or delete it. “Others” can't be deleted — a deleted category's transactions and rules move to Others.",
+            "Each category tile shows this month's spend. Use its ⋯ menu to edit it, view its transactions, or delete it. “Others” can't be deleted, and a deleted category's transactions and rules move to Others.",
             "On Auto-Rules, rules are grouped under their category. Tap a group to open it; each rule shows its name and keyword count.",
             "Open a rule to see its keywords. Tap one to edit it; press and hold to select several and delete them. Deleting every keyword deletes the rule.",
             "A keyword of four letters or more also matches inside a longer word, so “zomato” catches “paytmpayzomato”. Shorter ones must start a word, so “ola” can't hijack “Cholas”.",
-            "Rules ignore everything after “@” in a UPI id, so your keyword matches the merchant — not the handle.",
+            "Rules ignore everything after “@” in a UPI id, so your keyword matches the merchant, not the handle.",
             "Within one keyword a comma means every word must appear; “|” separates alternatives.",
             "Run Re-apply rules to update past transactions."
         )
@@ -153,24 +153,24 @@ private val topics = listOf(
         "Automatic SMS tracking", Icons.Rounded.Sms, Color(0xFF22D3EE),
         "Xpense reads incoming bank SMS and records your spending without any typing.",
         listOf(
-            "It captures debits and payments, and skips OTPs, credits and refunds, credit-card bill payments, mutual-fund confirmations and payment reminders — so nothing is double-counted.",
+            "It captures debits and payments, and skips OTPs, credits and refunds, credit-card bill payments, mutual-fund confirmations and payment reminders, so nothing is double-counted.",
             "Duplicate messages are ignored automatically.",
             "Use Sync SMS history (Profile) to import the last 6 months in one go.",
-            "If you change a category by hand your choice is kept, but a matching auto-rule takes priority — use “Force auto rule” to snap back."
+            "If you change a category by hand your choice is kept, but a matching auto-rule takes priority. Use “Force auto rule” to snap back."
         )
     ),
     HelpTopic(
         "Notifications inbox", Icons.Rounded.Notifications, Color(0xFFFACC15),
         "When Xpense can't confidently categorize a transaction, it files it under Others and lists it in Notifications so you can fix it later.",
         listOf(
-            "Tap an item to create a rule for it — it (and similar future ones) gets categorized instantly.",
+            "Tap an item to create a rule for it. It gets categorized instantly, and so do similar ones in future.",
             "Items clear themselves once categorized. Dismiss one with ✕, or use Clear all at the top.",
-            "The Pop-up alerts toggle controls the heads-up notification only — items are still saved to this list."
+            "The Pop-up alerts toggle controls the heads-up notification only. Items are still saved to this list."
         )
     ),
     HelpTopic(
         "Archived transactions", Icons.Rounded.Inventory2, Color(0xFF4ADE80),
-        "Archiving hides a transaction from all totals and charts — perfect for self-transfers or anything that isn't real spending.",
+        "Archiving hides a transaction from all totals and charts. It's useful for self-transfers or anything that isn't real spending.",
         listOf(
             "On Insights, swipe a transaction left to reveal Archive, then tap it. Nothing is archived until you tap, so an accidental swipe is harmless.",
             "Find everything archived under Profile → Archived transactions. Tap the restore button on a row, or swipe it right, to bring it back."
@@ -181,7 +181,7 @@ private val topics = listOf(
         "Keep your data safe and move it between phones with Google Drive (Profile → Backup & restore).",
         listOf(
             "Connect your Google account, then tap Back up now. The last backup time is shown.",
-            "Automatic backup runs around 2:00 am — turn it on and pick Daily, Weekly or Monthly. Signing out of Drive turns it off.",
+            "Automatic backup runs around 2:00 am. Turn it on and pick Daily, Weekly or Monthly. Signing out of Drive turns it off.",
             "Restore offers Merge (adds the backup to your data, skipping duplicates) or Replace (wipes this device first). Replace can't be undone.",
             "Drive sign-in may be limited to Google accounts the app owner has approved."
         )

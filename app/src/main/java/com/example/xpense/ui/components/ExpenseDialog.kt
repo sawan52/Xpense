@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
 import com.example.xpense.ui.formatAmountInput
+import com.example.xpense.ui.indianGrouping
 import com.example.xpense.ui.sanitizeAmountInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -223,7 +224,7 @@ private fun AmountInput(value: TextFieldValue, onValueChange: (TextFieldValue) -
     val prefix = "₹"
     BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
         val maxPx = with(density) { (maxWidth - 8.dp).toPx() }
-        val shown = prefix + value.text.ifEmpty { "0" }
+        val shown = prefix + indianGrouping(value.text.ifEmpty { "0" }).text
         val base = XType.display.copy(textAlign = TextAlign.Center)
         // Largest size from 48sp down (2sp steps) at which the whole string fits on one line.
         val size = remember(shown, maxPx) {
@@ -245,22 +246,32 @@ private fun AmountInput(value: TextFieldValue, onValueChange: (TextFieldValue) -
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
             cursorBrush = SolidColor(c.ac),
-            visualTransformation = if (value.text.isEmpty()) VisualTransformation.None else RupeePrefix(prefix, c.tx2),
+            visualTransformation = if (value.text.isEmpty()) VisualTransformation.None else RupeeAmountFormat(prefix, c.tx2),
             modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
-/** Draws "₹ " in front of the typed digits without it being part of the value. */
-private class RupeePrefix(private val prefix: String, private val color: androidx.compose.ui.graphics.Color) : VisualTransformation {
+/**
+ * Display-only formatting for the amount field: "₹" in front and Indian comma grouping
+ * (₹12,34,567.89). The value itself stays plain digits, so parsing and saving are unaffected; the
+ * offset mapping keeps the cursor in the right place as commas come and go.
+ */
+private class RupeeAmountFormat(private val prefix: String, private val color: androidx.compose.ui.graphics.Color) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
+        val grouped = indianGrouping(text.text)
         val out = buildAnnotatedString {
             withStyle(SpanStyle(color = color)) { append(prefix) }
-            append(text)
+            append(grouped.text)
         }
+        val map = grouped.rawToGrouped
         val mapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int) = offset + prefix.length
-            override fun transformedToOriginal(offset: Int) = (offset - prefix.length).coerceIn(0, text.length)
+            override fun originalToTransformed(offset: Int) = prefix.length + map[offset.coerceIn(0, text.length)]
+            override fun transformedToOriginal(offset: Int): Int {
+                val g = (offset - prefix.length).coerceIn(0, grouped.text.length)
+                // First raw offset whose grouped position reaches g (a tap on a comma snaps right).
+                return map.indexOfFirst { it >= g }.let { if (it < 0) text.length else it }
+            }
         }
         return TransformedText(out, mapping)
     }
