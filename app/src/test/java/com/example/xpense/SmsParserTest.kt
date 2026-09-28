@@ -884,6 +884,30 @@ class SmsParserTest {
     }
 
     @Test
+    fun testBoiDebitedTowardsBareAmountParsed() {
+        // Bank of India UPI debit: no currency token, and the amount follows the payee
+        // ("debited towards <payee> for <amount> on <date>").
+        val sms = "BOI UPI - Your account has been debited towards Google for 59.00 on 28/09/2026 " +
+            "(UPI Ref no 870668122716)."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(59.0, txn?.amount)
+        assertEquals("Google", txn?.merchant) // not "59.00 on 28"
+    }
+
+    @Test
+    fun testBoiDebitedTowardsMultiWordPayee() {
+        val sms = "BOI UPI - Your account has been debited towards TRIVENI RESTAURANT for 1,250.50 " +
+            "on 28/09/2026 (UPI Ref no 870668122799)."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(1250.5, txn?.amount)
+        assertEquals("TRIVENI RESTAURANT", txn?.merchant)
+    }
+
+    @Test
     fun testOtpIgnored() {
         val sms = "Your OTP is 123456. Do not share this with anyone."
         val transaction = SmsParser.parseTransaction(sms, emptyList(), testCategories)

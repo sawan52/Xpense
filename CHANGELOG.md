@@ -4,6 +4,15 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1] - 2026-09-28
+
+### Fixed
+- **Bank of India UPI payments are now recorded.** SMS like "Your account has been debited
+  towards Google for 59.00 on 28/09/2026" were skipped because the amount has no Rs or INR in
+  front of it. They are now saved with the right amount, and the payee ("Google") as the
+  merchant. To bring in payments you missed, use **Profile → Sync SMS history**.
+- A plain amount such as "59.00 on 28" is no longer mistaken for a merchant name.
+
 ## [4.0] - 2026-09-27
 
 A complete redesign of every screen, plus search, filters and a monthly budget.

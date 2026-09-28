@@ -127,6 +127,14 @@ object SmsParser {
         "(?i)debited\\s+by\\s+([\\d,]+\\.?\\d{0,2})"
     )
 
+    // Bank of India UPI alerts also carry a bare amount, placed AFTER the payee:
+    // "Your account has been debited towards Google for 59.00 on 28/09/2026 (UPI Ref no …)".
+    // Same fallback-only treatment as DEBITED_BY_AMOUNT_PATTERN, anchored on the full
+    // "debited towards <payee> for <amount> on" phrasing so it can't grab a reference number.
+    private val DEBITED_TOWARDS_AMOUNT_PATTERN = Pattern.compile(
+        "(?i)debited\\s+towards\\s+.+?\\s+for\\s+([\\d,]+\\.?\\d{0,2})\\s+on\\b"
+    )
+
     // Rejects bank/account *phrases* the at/to/for capture can grab ("transferred to your account",
     // "paid to bank"). Word boundaries are deliberate: a UPI handle suffix like "merchant@hdfcbank"
     // has no word boundary before "bank", so it is NOT rejected — only standalone words are.
@@ -138,8 +146,10 @@ object SmsParser {
     // amount, not a merchant. ICICI debits phrase the spend as "... debited FOR Rs 164.00 on
     // 27-Jun-26; ..." so the at/to/for capture grabs "Rs 164.00 on 27-Jun-26" — an amount is never
     // a merchant. Requires a digit after the currency token so a name like "INR Foods" is kept.
+    // Also rejects a bare decimal amount ("59.00 on 28") for banks that omit the currency token;
+    // the decimal part is required so a digit-led name like "1mg" is kept.
     private val LEADING_AMOUNT_PATTERN = Pattern.compile(
-        "(?i)^(?:Rs\\.?|INR|Amt)\\s*\\d"
+        "(?i)^(?:(?:Rs\\.?|INR|Amt)\\s*\\d|[\\d,]+\\.\\d{1,2}\\b)"
     )
 
     // Card spend alerts (e.g. Axis) name the merchant on its OWN line, with no "at/to" preposition,
@@ -217,6 +227,7 @@ object SmsParser {
         // SMS keep matching exactly as before.
         val amountMatcher = AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
             ?: DEBITED_BY_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
+            ?: DEBITED_TOWARDS_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
         if (amountMatcher == null) {
             Log.d(TAG, "SKIP (no amount): ${smsBody.take(80)}")
             return null
@@ -270,6 +281,9 @@ object SmsParser {
 
     private fun extractMerchant(smsBody: String): String {
         val patterns = listOf(
+            // Bank of India: "debited towards Google for 59.00 on …". Checked first because the
+            // generic at/to/for pattern below would otherwise read "for 59.00 on 28" as the name.
+            Pattern.compile("(?i)debited\\s+towards\\s+([A-Za-z0-9][A-Za-z0-9 .&'@*\\-]{1,40}?)\\s+for\\s+[\\d,]"),
             // "at Swiggy", "to Zomato", "at VPA abc@upi"
             Pattern.compile("(?i)(?:at|to|in\\*|for)\\s(?:VPA\\s)?([A-Za-z0-9][A-Za-z0-9\\s.\\-@]{2,})"),
             // "spent on Swiggy"
