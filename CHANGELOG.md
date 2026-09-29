@@ -4,6 +4,21 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1.1] - 2026-09-29
+
+### Fixed
+- **Insurance premiums are no longer counted twice.** Now that the Bank of India debit is
+  recorded, Policybazaar's "payment … for your policy … has been successfully debited" message
+  is skipped instead of being saved as a second payment.
+- **Mobile recharges are no longer counted twice.** Airtel's "Recharge … is successful" message
+  is skipped; the bank's debit SMS records the recharge. A recharge paid without a bank SMS
+  (for example from a wallet) has to be added by hand.
+- **Long SMS are no longer saved twice.** A message that arrives in several parts was saved
+  from its first part only, then saved again in full by **Sync SMS history**. The parts are
+  now joined into one message first.
+
+Entries already saved are not removed; delete or archive any duplicates you see.
+
 ## [4.1] - 2026-09-28
 
 ### Fixed

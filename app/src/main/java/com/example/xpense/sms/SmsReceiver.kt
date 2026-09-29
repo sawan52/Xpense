@@ -21,17 +21,22 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        // Collect the message bodies to process (real SMS may arrive multi-part).
+        // Collect the message bodies to process.
         val messages: List<Pair<String, Long>> = when (intent.action) {
             Telephony.Sms.Intents.SMS_RECEIVED_ACTION -> {
                 val smsList = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
-                Log.d(TAG, "SMS_RECEIVED: ${smsList.size} message(s)")
-                smsList.mapNotNull { msg ->
-                    val sender = msg.displayOriginatingAddress ?: "unknown"
-                    val body = msg.displayMessageBody ?: return@mapNotNull null
-                    Log.d(TAG, "From: $sender | Body: ${body.take(100)}")
-                    body to System.currentTimeMillis()
-                }
+                Log.d(TAG, "SMS_RECEIVED: ${smsList.size} part(s)")
+                // A long SMS arrives as several ~150-char parts in one intent. Join them back into
+                // the one message the inbox stores: handled part by part, the first part (which
+                // carries the amount) was saved on its own, and history sync then saved the full
+                // inbox text again because the bodies no longer matched for dedup.
+                smsList.groupBy { it.displayOriginatingAddress ?: "unknown" }
+                    .mapNotNull { (sender, parts) ->
+                        val body = parts.mapNotNull { it.displayMessageBody }.joinToString("")
+                        if (body.isEmpty()) return@mapNotNull null
+                        Log.d(TAG, "From: $sender | Body: ${body.take(100)}")
+                        body to System.currentTimeMillis()
+                    }
             }
             "com.example.xpense.SIMULATE_SMS" -> {
                 val body = intent.getStringExtra("body") ?: return

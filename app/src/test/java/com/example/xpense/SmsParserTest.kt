@@ -529,15 +529,45 @@ class SmsParserTest {
     }
 
     @Test
-    fun testGenuinePremiumDebitStillParsed() {
-        // The matching debit that arrives once the money actually moves must still be recorded,
-        // otherwise the reminder fix would lose the expense entirely.
+    fun testBrokerPremiumConfirmationIgnored() {
+        // Policybazaar confirms a premium the bank already reported ("BOI UPI - … debited towards
+        // Policybazaar Insurance Brokers for 1,607.00 …"). Recording both put the premium in twice.
         val sms = "Ravi Kumar Sharma payment of Rs.1607 for your iPru policy no. X0000000 has been " +
             "successfully debited on Aug 2, 2026. Team Policybazaar"
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testAirtelRechargeConfirmationIgnored() {
+        // Only the bank's debit SMS records a recharge; the operator's confirmation is skipped.
+        val airtel = "Recharge of INR 3,599.00 is successful for your Airtel Mobile on 07-08-2026 10:49, " +
+            "Transaction ID 796583866.Check your balance, validity, tariff and best recharges on Airtel app"
+        val order = "Hi, Your Prepaid recharge of Rs. 49.0 is success against Order Id 7479796241521729536. " +
+            "Please keep the Order ID for future reference."
+        assertNull(SmsParser.parseTransaction(airtel, emptyList(), testCategories))
+        assertNull(SmsParser.parseTransaction(order, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testBankDebitForAirtelRechargeStillParsed() {
+        val sms = "Txn Rs.3599.00\nOn HDFC Bank Card 2487\nAt airtelpaymentsb554262.rzp \nby UPI 104855125748\n" +
+            "On 07-08\nNot You?\nCall 18002586161/SMS BLOCK CC 2487 to 7308080808"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(3599.0, txn?.amount)
+    }
+
+    @Test
+    fun testBoiPremiumMandateDebitStillParsed() {
+        // The bank's own alert for that premium is the one that must be recorded.
+        val sms = "BOI UPI - Your account has been debited towards Policybazaar Insurance Brokers " +
+            "for 1,607.00 on 02/09/2026 (UPI Ref no 624509953101)."
         val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
 
         assertNotNull(txn)
         assertEquals(1607.0, txn?.amount)
+        assertEquals(true, txn?.merchant?.startsWith("Policybazaar")) // name capped at 25 chars
     }
 
     @Test
@@ -775,11 +805,11 @@ class SmsParserTest {
         )
         val sms = "Ravi Kumar Sharma payment of Rs.1607 for your iPru policy no. X0000000 has been " +
             "successfully debited on Aug 2, 2026. Team Policybazaar"
-        val txn = SmsParser.parseTransaction(sms, rules, cats)
+        // Categorisation only: this confirmation SMS itself is skipped by parseTransaction.
+        val result = SmsParser.categorizationFor(sms, rules, cats)
 
-        assertNotNull(txn)
-        assertEquals(8L, txn?.categoryId)              // Insurance, not Others
-        assertEquals("Term Insurance", txn?.merchant)
+        assertEquals(8L, result.categoryId)            // Insurance, not Others
+        assertEquals("Term Insurance", result.label)
     }
 
     @Test

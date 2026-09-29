@@ -81,6 +81,23 @@ object SmsParser {
         ")"
     )
 
+    // Insurer / broker CONFIRMATIONS of a premium ("payment of Rs.1607 for your iPru policy no. …
+    // has been successfully debited … Team Policybazaar"). Same story as the MF allotment above: the
+    // bank's own alert for that debit ("BOI UPI - … debited towards Policybazaar Insurance Brokers
+    // for 1,607.00 …") is recorded, so counting the echo too put every premium in twice. Bank
+    // alerts talk about "your account", never "your … policy", so genuine debits are unaffected.
+    private val POLICY_PAYMENT_CONFIRMATION_PATTERN = Pattern.compile(
+        "(?i)\\bfor\\s+your\\s+(?:\\S+\\s+){0,2}policy\\b"
+    )
+
+    // Mobile operator RECHARGE confirmations ("Recharge of INR 3,599.00 is successful for your
+    // Airtel Mobile …", "Your Prepaid recharge of Rs. 49.0 is success …"). Only bank debit SMS
+    // count: when the bank sends one it is recorded and this echo doubled it; when the recharge
+    // was paid without a bank SMS (e.g. a wallet), the user adds it by hand.
+    private val RECHARGE_CONFIRMATION_PATTERN = Pattern.compile(
+        "(?i)\\brecharge\\s+of\\s+(?:rs\\.?|inr)\\s*[\\d,.]+\\s+is\\s+success"
+    )
+
     // Auto-debit / e-mandate / AutoPay REMINDERS announce a FUTURE debit that hasn't happened yet
     // ("INR 299 for Google Play will be auto debited ... by 28-06-26", "amount is due to be debited
     // on ..."). They carry a debit verb but no money has moved — the actual debit arrives as its own
@@ -103,8 +120,7 @@ object SmsParser {
     // These messages contain no debit verb of their own; what made them parse was the sign-off
     // "Ignore if paid", whose "paid" is the sole DEBIT_PATTERN hit in an otherwise reminder-only
     // text. Each alternative below is phrasing a completed-debit SMS never uses, so genuine premium
-    // debits ("payment of Rs.1607 … has been successfully debited", "Rs.1607 debited A/c…") are
-    // unaffected.
+    // debits ("Rs.1607 debited A/c…", "debited towards Policybazaar … for 1,607.00") are unaffected.
     private val PAYMENT_REMINDER_PATTERN = Pattern.compile(
         "(?i)(" +
             "ignore\\s+if\\s+(already\\s+)?paid" +              // "…to pay now. Ignore if paid."
@@ -187,6 +203,18 @@ object SmsParser {
         // SMS; "purchase request ... processed" would otherwise trip the debit check below.
         if (INVESTMENT_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (investment confirmation): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Insurer/broker premium confirmations echo the bank's own debit alert, which is recorded.
+        if (POLICY_PAYMENT_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (policy payment confirmation): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Operator recharge confirmations: only the bank's debit SMS records a recharge.
+        if (RECHARGE_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
+            Log.d(TAG, "SKIP (recharge confirmation): ${smsBody.take(80)}")
             return null
         }
 
