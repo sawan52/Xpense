@@ -99,6 +99,7 @@ private val topics = listOf(
         "On first launch, Xpense sets up 7 default categories (Food, Shopping, Transport, Bills, Health, Entertainment, Others) and a few starter rules, so it works right away.",
         listOf(
             "SMS permission is required. It's how Xpense reads your bank's transaction messages. Your messages never leave your phone.",
+            "Installed Xpense from an APK file and SMS won't turn on (Android 13+)? Open Settings → Apps → Xpense, tap ⋮ (top right) → Allow restricted settings, then Permissions → SMS → Allow. The SMS access screen has an Open app settings button that takes you straight there.",
             "Notification permission (Android 13+) is optional. It lets Xpense alert you when a transaction needs a category.",
             "Get around with the floating bar: Home, Insights, the centre + to add an expense, Categories, and Profile.",
             "Prefer a lighter look? Switch between dark and light mode under Profile → Appearance."

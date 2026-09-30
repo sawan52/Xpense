@@ -4,6 +4,18 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1.2] - 2026-09-30
+
+### Fixed
+- **SMS access can be granted when Xpense is installed from an APK file.** On Android 13+
+  (and always on Android 16) the system blocks SMS permission for apps installed from a file,
+  so "Grant permission" did nothing and Allow was greyed out in Settings. The SMS access screen
+  now spots this and shows the steps (App info → ⋮ → Allow restricted settings → Permissions →
+  SMS → Allow) with an **Open app settings** button.
+- **Xpense opens as soon as SMS access is granted in Settings.** It used to stay on the SMS
+  access screen until the app was closed and reopened.
+- Help → Getting started & permissions explains the restricted-settings steps.
+
 ## [4.1.1] - 2026-09-29
 
 ### Fixed

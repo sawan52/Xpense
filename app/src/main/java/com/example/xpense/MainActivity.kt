@@ -3,8 +3,10 @@ package com.example.xpense
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +63,15 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intentFlow.value = intent
+    }
+
+    // Bumped on every resume so the UI re-checks permissions the user may have just granted in
+    // Settings (granting from Settings doesn't restart the app, so nothing else would notice).
+    private val resumeCount = MutableStateFlow(0)
+
+    override fun onResume() {
+        super.onResume()
+        resumeCount.value++
     }
 
     private fun applySystemBars(dark: Boolean) {
@@ -101,15 +113,22 @@ class MainActivity : ComponentActivity() {
         val context = LocalContext.current
         fun hasPermission(p: String) = ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
-        var hasSmsPermission by remember {
-            mutableStateOf(hasPermission(Manifest.permission.RECEIVE_SMS) && hasPermission(Manifest.permission.READ_SMS))
-        }
+        val smsPermissions = arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)
+        fun smsGranted() = smsPermissions.all { hasPermission(it) }
+        var hasSmsPermission by remember { mutableStateOf(smsGranted()) }
+        // True once Android refuses without showing a dialog: "Don't allow" chosen twice, or (for an
+        // APK installed from a file on Android 13+) SMS is a restricted setting. Only App info can
+        // unblock it then, so the permission screen switches to Settings instructions.
+        var smsRequestBlocked by rememberSaveable { mutableStateOf(false) }
         val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
             hasSmsPermission = results.values.all { it }
+            smsRequestBlocked = !hasSmsPermission && smsPermissions.none { shouldShowRequestPermissionRationale(it) }
         }
         LaunchedEffect(Unit) {
-            if (!hasSmsPermission) permissionLauncher.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS))
+            if (!hasSmsPermission) permissionLauncher.launch(smsPermissions)
         }
+        val resumes by resumeCount.collectAsState()
+        LaunchedEffect(resumes) { hasSmsPermission = smsGranted() }
 
         // Notification permission is requested separately and its result is intentionally ignored —
         // denial must never block the app, unlike SMS access above.
@@ -159,7 +178,13 @@ class MainActivity : ComponentActivity() {
                 // Sync dialogs hoisted here so they appear over any screen that triggers a sync.
                 SyncDialogs(viewModel)
             } else {
-                PermissionScreen { permissionLauncher.launch(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS)) }
+                PermissionScreen(
+                    blocked = smsRequestBlocked,
+                    onGrant = { permissionLauncher.launch(smsPermissions) },
+                    onOpenSettings = {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+                    }
+                )
             }
 
             AnimatedVisibility(searchScope != null, enter = fadeIn(tween(200)), exit = fadeOut(tween(150))) {
@@ -299,10 +324,10 @@ private fun NavItem(tab: NavTab, selected: Boolean, modifier: Modifier, onClick:
 }
 
 @Composable
-private fun PermissionScreen(onGrant: () -> Unit) {
+private fun PermissionScreen(blocked: Boolean, onGrant: () -> Unit, onOpenSettings: () -> Unit) {
     val c = XpenseTheme.colors
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(28.dp),
+        Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
@@ -312,6 +337,23 @@ private fun PermissionScreen(onGrant: () -> Unit) {
             "Xpense reads your bank's transaction SMS to track spending automatically. Messages never leave your phone.",
             style = XType.body, color = c.tx2, textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
-        XButton("Grant permission", onGrant, Modifier.padding(top = 8.dp).fillMaxWidth(), height = 54.dp, radius = 18.dp)
+        if (blocked) {
+            // Android won't show the permission dialog any more; only App info can grant it.
+            GlassCard(Modifier.fillMaxWidth(), radius = 18.dp, contentPadding = PaddingValues(16.dp)) {
+                Text("Allow SMS from Settings", style = XType.bodyStrong, color = c.tx)
+                listOf(
+                    "Tap Open app settings below.",
+                    "If SMS is greyed out, tap ⋮ (top right) → Allow restricted settings first.",
+                    "Tap Permissions → SMS → Allow.",
+                    "Come back here and Xpense opens automatically."
+                ).forEachIndexed { i, step ->
+                    Text("${i + 1}.  $step", style = XType.small, color = c.tx2, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+            XButton("Open app settings", onOpenSettings, Modifier.padding(top = 8.dp).fillMaxWidth(), icon = Icons.Rounded.Settings, height = 54.dp, radius = 18.dp)
+            XButton("Try again", onGrant, Modifier.fillMaxWidth(), style = BtnStyle.Secondary, height = 48.dp, radius = 18.dp)
+        } else {
+            XButton("Grant permission", onGrant, Modifier.padding(top = 8.dp).fillMaxWidth(), height = 54.dp, radius = 18.dp)
+        }
     }
 }
