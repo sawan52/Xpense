@@ -7,6 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class SmsParserTest {
 
@@ -497,6 +499,146 @@ class SmsParserTest {
         assertNotNull(txn)
         assertEquals(299.0, txn?.amount)
         assertEquals("GOOGLEPLAY", txn?.merchant)
+    }
+
+    // ── Scheduled-debit / reminder detection ─────────────────────────────────────────────────────
+
+    // 10 AM local time on the given day — the SMS "received" timestamp for the date check.
+    private fun receivedOn(year: Int, month: Int, day: Int): Long =
+        LocalDate.of(year, month, day).atStartOfDay(ZoneId.systemDefault()).plusHours(10)
+            .toInstant().toEpochMilli()
+
+    @Test
+    fun testHdfcNachInstallmentReminderIgnored() {
+        // Reported: recorded as a ₹9,731 expense although nothing has been debited yet.
+        val sms = "HDFC Bank Loan Ac no. xxx12345 - INSTALLMENT of RS.9731 NACH scheduled for debit on " +
+            "05-oct-26 from Bank Ac no 12345xxx6789. Please maintain sufficient funds."
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 3)))
+    }
+
+    @Test
+    fun testCommonReminderFormatsIgnored() {
+        val reminders = listOf(
+            "EMI of Rs 5,400 for your loan a/c XX9012 will be debited on 10-Oct-26.",
+            "Pre-debit notification: Rs.499 towards Netflix mandate UMN123 will be debited on 12/10/2026.",
+            "SI for Rs 2500.00 on A/c XX1234 is scheduled on 15-10-2026 towards SBI Life.",
+            "Dear Customer, debit of Rs 1200 is due on 07-Oct-26 for your NACH mandate. Please keep " +
+                "sufficient balance to avoid bounce charges.",
+            "Your Credit Card statement is generated. Total amount due Rs 12,345.00, min due Rs 620.",
+            "Reminder: Rs 899 for Airtel Postpaid is payable by 20-10-2026.",
+            "Your upcoming EMI of INR 3,250 for loan 778899 falls on 05 Nov 2026.",
+            "Rs.750 debit for Jio AutoPay is set to be processed. Ensure sufficient balance in A/c XX4455.",
+            "Rs 4000 SIP via NACH to Groww will be presented on 08-10-26. Avl Bal Rs 2,100. " +
+                "Please maintain sufficient balance."
+        )
+        for (sms in reminders) {
+            assertNull("should skip: $sms", SmsParser.parseTransaction(sms, emptyList(), testCategories))
+        }
+    }
+
+    @Test
+    fun testUnseenWordingWithFutureDateIgnored() {
+        // No reminder keyword at all — only the future date gives it away.
+        val sms = "Rs 1,999.00 towards Hotstar via debit card XX1122 on 15-Oct-2026"
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 9)))
+    }
+
+    @Test
+    fun testCompletedDebitWithNextDueDateStillParsed() {
+        // A real EMI debit that also announces the next due date is still a real debit.
+        val sms = "Rs 9731.00 debited from A/c XX6789 for HDFC loan EMI on 05-10-26. Next EMI due on 05-11-26."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 5))
+        assertNotNull(txn)
+        assertEquals(9731.0, txn?.amount)
+    }
+
+    @Test
+    fun testDebitWithTodaysDateStillParsedWhenReceivedAtKnown() {
+        val sms = "Txn Rs.250.00 On HDFC Bank Card 1234 At SWIGGY on 2026-10-09:12:30:11"
+        assertNotNull(SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 9)))
+        val nach = "BOI - Rs 4000.00 has been Debited (NACH) in your account XXXX1234 - NACH DR INW - " +
+            "GROWW INVEST TEC ON 03-06-2026. Avl Bal 32902.85"
+        assertNotNull(SmsParser.parseTransaction(nach, emptyList(), testCategories, receivedOn(2026, 6, 3)))
+    }
+
+    @Test
+    fun testReminderWithReferenceNumberIgnored() {
+        // A loan/mandate "Ref no" is not proof of a completed debit — reminders quote them too.
+        val sms = "Your EMI debit of Rs 7,000 is due on 15-10-2026. Ref no LN99881."
+        assertNull(SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 9)))
+    }
+
+    @Test
+    fun testProcessedEmiRecorded() {
+        // No debit verb, but the EMI is reported as done.
+        val sms = "Your EMI of Rs 3,250 for loan 778899 has been successfully processed on 09-10-2026."
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 9))
+        assertNotNull(txn)
+        assertEquals(3250.0, txn?.amount)
+        assertNotNull(SmsParser.parseTransaction(
+            "Standing Instruction for Rs 3000 to PPF a/c XX12 was executed on 09-10-2026.",
+            emptyList(), testCategories, receivedOn(2026, 10, 9)
+        ))
+    }
+
+    @Test
+    fun testProcessedWordingThatIsNotASpendIgnored() {
+        val notSpends = listOf(
+            // bounced: "could not be processed"
+            "Your EMI debit of Rs 6,000 on 05-10-2026 could not be processed due to insufficient balance.",
+            // money coming back
+            "Refund of Rs 499 for your cancelled EMI has been processed.",
+            // still in the future
+            "Your SIP of Rs 1,500 will be processed on 10-Oct-2026 via NACH.",
+            // a biller's echo of a bank debit (no debit instrument named)
+            "Your payment of Rs 899 to Airtel has been processed. Thank you."
+        )
+        for (sms in notSpends) {
+            assertNull("should skip: $sms", SmsParser.parseTransaction(sms, emptyList(), testCategories, receivedOn(2026, 10, 5)))
+        }
+    }
+
+    @Test
+    fun testReminderKeywordsWithWordsInBetweenIgnored() {
+        // Caught by wording alone — no receive date, so the date check can't help.
+        val reminders = listOf(
+            "Your Airtel postpaid bill of Rs 799 is generated. Auto debit active.",
+            "Your mandate for Rs 500 debit to Zerodha will run on 15-Oct-2026.",
+            "AutoPay debit of Rs 149 for Google One due 14-10-2026."
+        )
+        for (sms in reminders) {
+            assertNull("should skip: $sms", SmsParser.parseTransaction(sms, emptyList(), testCategories))
+        }
+    }
+
+    @Test
+    fun testRefundsIgnored() {
+        // Every saved row counts as spending, so a recorded refund would ADD to the month's total.
+        val refunds = listOf(
+            "Refund of Rs 499 for your cancelled NACH debit has been processed.",
+            "Refund of Rs 499 against txn debited on 05-10-2026 has been credited to your A/c XX1234.",
+            "Txn reversal: Rs 250 debit at SWIGGY reversed to your card XX1234."
+        )
+        for (sms in refunds) {
+            assertNull("should skip: $sms", SmsParser.parseTransaction(sms, emptyList(), testCategories))
+        }
+    }
+
+    @Test
+    fun testDebitMentioningRefundStillParsed() {
+        val sms = "Rs 500 debited from A/c XX1234 on 09-10-26 at AMAZON. Not you? Call 1800 for a refund."
+        assertNotNull(SmsParser.parseTransaction(sms, emptyList(), testCategories))
+    }
+
+    @Test
+    fun testExtractDatesFormats() {
+        val expected = LocalDate.of(2026, 10, 5)
+        listOf("05-oct-26", "05-Oct-2026", "05Oct26", "5 Oct 2026", "5 October 2026", "Oct 5, 2026",
+            "05/10/2026", "05-10-26", "05.10.2026", "2026-10-05"
+        ).forEach { assertEquals(it, listOf(expected), SmsParser.extractDates("due on $it.")) }
+        // Amounts, times and non-month words are not dates.
+        assertEquals(emptyList<LocalDate>(), SmsParser.extractDates("Rs 1,607.00 for 59.00 at 08:20:36 by market 26"))
     }
 
     // ── Premium / policy reminders are not transactions ─────────────────────────────────────────

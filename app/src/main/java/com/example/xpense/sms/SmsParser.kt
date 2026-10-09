@@ -3,6 +3,9 @@ package com.example.xpense.sms
 import android.util.Log
 import com.example.xpense.data.entity.CategoryRule
 import com.example.xpense.data.entity.Category
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
@@ -27,7 +30,8 @@ object SmsParser {
 
     // Explicit debit/spend verbs — strong signal that money left the account
     private val DEBIT_PATTERN = Pattern.compile(
-        "(?i)\\b(debited|debit|spent|paid|sent|transferred|deducted|withdrawn|withdrawal|purchase|charged)\\b"
+        "(?i)\\b(debited|debit|spent|paid|sent|transferred|deducted|withdrawn|withdrawal|purchase|charged)\\b" +
+            "|\\bused\\s+(?:for|at)\\b"     // "HDFC Bank Card XX1234 used for Rs 1,560 at UBER"
     )
 
     // Generic transaction-alert words. Many bank/card alerts (e.g. HDFC card UPI alerts)
@@ -98,37 +102,162 @@ object SmsParser {
         "(?i)\\brecharge\\s+of\\s+(?:rs\\.?|inr)\\s*[\\d,.]+\\s+is\\s+success"
     )
 
-    // Auto-debit / e-mandate / AutoPay REMINDERS announce a FUTURE debit that hasn't happened yet
-    // ("INR 299 for Google Play will be auto debited ... by 28-06-26", "amount is due to be debited
-    // on ..."). They carry a debit verb but no money has moved — the actual debit arrives as its own
-    // SMS later (and IS recorded). Skipping the reminder avoids double-counting a charge, and avoids
-    // counting one that might not even go through. Keyed on FUTURE-tense phrasing so completed
-    // debits ("Rs X debited", "Spent INR X") are never affected.
-    private val UPCOMING_DEBIT_PATTERN = Pattern.compile(
-        "(?i)(" +
-            "will\\s+be\\s+(auto[\\s-]?)?(debited|deducted|charged)" +              // "will be auto debited"
-            "|(is|are)\\s+(due|scheduled)\\s+to\\s+be\\s+(debited|deducted|charged)" + // "is due to be debited"
-            "|(debit|payment|amount)\\s+(is\\s+)?(due|scheduled)\\s+(on|for|by)\\b" +  // "payment is due on"
-            "|to\\s+process\\s+the\\s+auto[\\s-]?debit" +                           // AutoPay reminder boilerplate
-        ")"
+    // ── Reminders / scheduled debits ────────────────────────────────────────────────────────────
+    // Auto-debit, EMI, NACH, AutoPay, premium and bill REMINDERS announce money that WILL move
+    // ("INSTALLMENT of RS.9731 NACH scheduled for debit on 05-oct-26 … Please maintain sufficient
+    // funds"). They carry a debit word and an amount, so they used to parse as spends, but nothing
+    // has been taken yet — the real debit arrives as its own SMS later and is recorded then.
+    // Matching one bank's template at a time never kept up, so [futureDebitReason] decides in
+    // layers: completed-debit evidence first (protects real debits), then reminder wording, then
+    // a future date in an SMS that has no completed-debit evidence at all.
+
+    // A debit verb in FUTURE/passive-intent form ("will be auto debited", "is due to be deducted",
+    // "will get debited", "renew … and be charged", "being charged"). Removed from the text before
+    // looking for completed verbs, so the "debited" inside "will be debited" is not mistaken for a
+    // completed debit. Keyed on the bare "be"/"get": a completed debit says "been"/"got" instead.
+    private val FUTURE_DEBIT_VERB_PATTERN = Pattern.compile(
+        "(?i)\\b(?:be|being|get|getting)\\s+(?:auto[\\s-]?)?" +
+            "(?:debited|deducted|charged|presented|processed|executed|collected|paid|withdrawn|transferred|sent)\\b" +
+            // "…will be renewed on 18-10-2026 and charged to card" — the "charged" shares the
+            // "will be" of its own sentence (". " ends the sentence; "Rs." does not).
+            "|\\b(?:will|shall|would)\\s+(?:be|get)\\b(?:(?!\\.\\s)[\\s\\S]){0,80}?\\band\\s+(?:auto[\\s-]?)?" +
+            "(?:debited|deducted|charged|paid|withdrawn)\\b"
     )
 
-    // Premium / bill payment REMINDERS and mandate registrations. They quote what you OWE, not what
-    // was taken — the real debit arrives later as its own SMS and is recorded then. Left unchecked
-    // an insurance renewal notice became a ₹1,607 expense every month.
-    //
-    // These messages contain no debit verb of their own; what made them parse was the sign-off
-    // "Ignore if paid", whose "paid" is the sole DEBIT_PATTERN hit in an otherwise reminder-only
-    // text. Each alternative below is phrasing a completed-debit SMS never uses, so genuine premium
-    // debits ("Rs.1607 debited A/c…", "debited towards Policybazaar … for 1,607.00") are unaffected.
-    private val PAYMENT_REMINDER_PATTERN = Pattern.compile(
-        "(?i)(" +
-            "ignore\\s+if\\s+(already\\s+)?paid" +              // "…to pay now. Ignore if paid."
-            "|\\bpay\\s+(your\\s+)?premium\\b" +                // "pay premium of Rs. 1607 online"
-            "|\\bpay\\s+by\\s+\\d" +                            // "is due. Pay by 21-Sep-2026"
-            "|will\\s+be\\s+applied\\s+to\\s+your\\s+policy" +  // registered, not yet debited
-        ")"
+    // "Ignore if paid", "if not paid", "unpaid" — a past-tense verb that describes a hypothetical
+    // payment, not one that happened. Also removed before looking for completed verbs.
+    private val CONDITIONAL_PAID_PATTERN = Pattern.compile(
+        "(?i)\\bif\\s+(?:you\\s+have\\s+)?(?:already\\s+|not\\s+(?:yet\\s+)?)?(?:paid|debited)\\b" +
+            "|\\bunpaid\\b|\\bnot\\s+(?:yet\\s+)?(?:paid|debited)\\b"
     )
+
+    // Layer 1 — money has ALREADY moved. A real debit SMS (almost) always says so in the past tense.
+    private val COMPLETED_DEBIT_VERB_PATTERN = Pattern.compile(
+        "(?i)\\b(debited|deducted|charged|withdrawn|spent|paid|sent|transferred)\\b|\\bused\\s+(?:for|at)\\b"
+    )
+
+    // Layer 1 — a mandate / EMI / SI debit reported as done without a debit verb ("Your EMI of
+    // Rs 3,250 … has been successfully processed", "SI executed", "NACH debit successful").
+    // The completion phrase needs "has been / was / successfully" right before it, so "could not
+    // be processed" and "will be processed" never match.
+    private val PROCESSED_DEBIT_PATTERN = Pattern.compile(
+        "(?i)\\b(?:(?:has|have)\\s+been|was|got)\\s+(?:successfully\\s+)?(?:processed|executed)\\b" +
+            "|\\bsuccessfully\\s+(?:processed|executed)\\b" +
+            "|\\b(?:processed|executed)\\s+successfully\\b" +                 // "SIP … executed successfully"
+            "|\\b(?:(?:has|have)\\s+been|was|is)\\s+successful\\b" +           // "UPI AutoPay … was successful"
+            "|\\bdebit\\s+(?:is\\s+|was\\s+)?successful(?:ly)?\\b"
+    )
+
+    // …and it has to be about a debit instrument. Plain "payment"/"premium" is left out on purpose:
+    // a biller's "your payment has been processed" echoes the bank's own debit SMS, which is what
+    // gets recorded (see the duplicate-SMS policy above).
+    private val DEBIT_INSTRUMENT_PATTERN = Pattern.compile(
+        "(?i)\\b(?:emi|installment|instalment|sip|si|standing\\s+instruction|nach|e[\\s-]?mandate|mandate|" +
+            "auto[\\s-]?debit|auto[\\s-]?pay|debit)\\b"
+    )
+
+    // Setting up a mandate/AutoPay ("… mandate registration is successful", "has been created")
+    // moves no money; the first debit arrives later as its own SMS.
+    private val MANDATE_SETUP_PATTERN = Pattern.compile(
+        "(?i)\\b(?:created|registered|registration|activated|set\\s*up|setup|approved|revoked|cancelled|paused)\\b"
+    )
+
+    // A refund or reversal "has been processed" is money coming back, never a spend.
+    private val MONEY_BACK_PATTERN = Pattern.compile(
+        "(?i)\\b(?:refund|refunded|cashback|reversal|reversed|credited)\\b"
+    )
+
+    // REFUNDS / REVERSALS. Every saved row is a spend (the app has no "money in" type), so a refund
+    // that slipped through ADDED to spending. They can still look like debits: "Refund of Rs 499 for
+    // your cancelled NACH debit has been processed" has the noun "debit" and an amount, and "refund"
+    // itself was not a credit keyword. See [isRefundNotice].
+    private val REFUND_PATTERN = Pattern.compile(
+        "(?i)\\b(?:refund|refunded|reversal|reversed)\\b"
+    )
+    // What happens to a refund: it is credited / processed / initiated … Lets a refund SMS that
+    // quotes the original debit ("Refund for Rs 499 debited on 05-10 has been credited") be skipped.
+    private val REFUND_OUTCOME_PATTERN = Pattern.compile(
+        "(?i)\\b(?:credited|processed|initiated|issued|successful|reversed|refunded)\\b"
+    )
+
+    // Layer 1, weaker — tokens only a bank's post-transaction alert carries (a balance/limit line,
+    // a UPI reference). They protect an SMS from the ordinary reminder wording and the date check,
+    // but not from [STRONG_REMINDER_PATTERN]. Generic "Ref no" / "Txn ID" / "RRN" are deliberately
+    // NOT here: reminders quote loan and mandate reference numbers too.
+    private val TRANSACTION_PROOF_PATTERN = Pattern.compile(
+        "(?i)\\b(?:avl|avbl|available)\\.?\\s*(?:bal|balance|limit|lmt)\\b|\\bupi\\s*ref\\b"
+    )
+
+    // Phrases that only ever appear in a reminder. They mark the SMS as a reminder even when it also
+    // carries a balance or reference token — only a completed debit VERB outranks them.
+    private val STRONG_REMINDER_PATTERN = Pattern.compile(
+        "(?i)\\bpre[\\s-]?debit\\s+(?:notification|intimation|notice|alert)\\b" +
+            "|\\bscheduled\\s+for\\s+(?:\\S+\\s+){0,2}?debit\\b" +                    // "scheduled for (NACH) debit"
+            "|\\b(?:will|shall)\\s+be\\s+(?:auto[\\s-]?)?debited\\b" +                // "will be auto debited"
+            "|\\bmaintain\\s+(?:sufficient|adequate|required|minimum)\\s+(?:funds?|balance|limit)\\b"
+    )
+
+    // Layer 2 — reminder / future-intent wording, grouped into families so the log says which fired.
+    // "(?:\S+\s+){0,3}?" lets up to three words sit in between ("scheduled for NACH debit").
+    private val REMINDER_FAMILIES: List<Pair<String, Pattern>> = listOf(
+        "future-tense" to Pattern.compile(
+            "(?i)" + FUTURE_DEBIT_VERB_PATTERN.pattern().removePrefix("(?i)") +
+                "|\\b(?:will|shall)\\s+(?:debit|deduct|charge)\\s+your\\b" +
+                "|\\b(?:going|about|set)\\s+to\\s+be\\s+(?:debited|deducted|charged)\\b"
+        ),
+        "scheduling" to Pattern.compile(
+            "(?i)\\bscheduled\\s+(?:for|on|to)\\b|\\bis\\s+scheduled\\b" +
+                "|\\bscheduled\\s+(?:\\S+\\s+){0,3}?debit\\b|\\bdebit\\s+(?:is\\s+)?scheduled\\b" +
+                "|\\bupcoming\\b" +
+                "|\\bnext\\s+(?:debit|emi|installment|instalment|payment|due)\\b" +
+                "|\\bdue\\s+(?:on|by|date|for)\\b|\\b(?:is|are)\\s+due\\b|\\bfalls\\s+due\\b" +
+                "|\\bdue\\s+\\d{1,2}(?:st|nd|rd|th)?[\\s\\-/.](?:\\d{1,2}|[a-z]{3})" +  // "due 14-10-2026", "due 5 Nov"
+                "|\\bpayable\\s+(?:on|by)\\b|\\boverdue\\b|\\bpast\\s+due\\b" +
+                "|\\btomorrow\\b|\\bin\\s+\\d+\\s+days?\\b" +                        // "AutoPay debit tomorrow"
+                "|\\bsoon\\b|\\bshortly\\b|\\bnext\\s+(?:week|month)\\b"              // "renewal debit soon"
+        ),
+        "funds-warning" to Pattern.compile(
+            "(?i)\\b(?:maintain|ensure|keep)\\s+(?:sufficient|adequate|required|minimum|enough)\\s+(?:funds?|balance|limit)\\b" +
+                "|\\binsufficient\\s+(?:funds?|balance)\\b" +
+                "|\\bto\\s+avoid\\s+(?:\\S+\\s+){0,2}?(?:bounce|dishonou?r|penalty|penal|charges|late\\s+fee|return)\\b" +
+                "|\\bkindly\\s+fund\\b"
+        ),
+        "mandate-notice" to Pattern.compile(
+            "(?i)\\bpre[\\s-]?debit\\s+(?:notification|intimation|notice|alert)\\b" +
+                "|\\b(?:e[\\s-]?mandate|mandate|auto[\\s-]?pay|standing\\s+instruction|si|nach)\\b\\s+" +
+                "(?:\\S+\\s+){0,6}?(?:will|scheduled|due|presented)\\b" +   // "mandate for Rs 500 debit to Zerodha will"
+                "|\\bpresentation\\s+(?:date|on)\\b" +
+                "|\\bto\\s+process\\s+the\\s+auto[\\s-]?debit\\b"
+        ),
+        "reminder-wording" to Pattern.compile(
+            "(?i)\\breminder\\b" +
+                "|\\bpay\\s+(?:by|now|before)\\b|\\bpay\\s+(?:your\\s+)?premium\\b" +
+                "|\\bignore\\s+if\\s+(?:already\\s+)?paid\\b" +
+                "|\\b(?:bill|statement)\\s+(?:\\S+\\s+){0,5}?generated\\b" +     // "bill of Rs 799 is generated"
+                "|\\b(?:total|minimum|min)\\.?\\s+(?:amount\\s+|amt\\.?\\s+)?due\\b|\\bamount\\s+due\\b" +
+                "|\\bwill\\s+be\\s+applied\\s+to\\s+your\\s+policy\\b"           // registered, not yet debited
+        )
+    )
+
+    // Layer 3 — dates. A completed debit talks about today or the past; only a reminder names a
+    // FUTURE date. Formats: 05-oct-26, 05-Oct-2026, 05Oct26, 5 Oct 2026, 5 October 2026 …
+    private val DAY_MONTH_NAME_DATE = Pattern.compile(
+        "(?i)(?<!\\d)(\\d{1,2})[\\s\\-/.]*([a-z]{3,9})[\\s\\-/.,']*(\\d{4}|\\d{2})(?!\\d)"
+    )
+    // … Oct 5, 2026 / October 05 2026
+    private val MONTH_NAME_DAY_DATE = Pattern.compile(
+        "(?i)\\b([a-z]{3,9})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})(?!\\d)"
+    )
+    // … 05/10/2026, 05-10-26, 05.10.2026 (day first, as Indian banks write it)
+    private val NUMERIC_DATE = Pattern.compile(
+        "(?<![\\d.,])(\\d{1,2})([\\-/.])(\\d{1,2})\\2(\\d{4}|\\d{2})(?![\\d.,]\\d|\\d)"
+    )
+    // … 2026-10-05
+    private val ISO_DATE = Pattern.compile(
+        "(?<!\\d)(\\d{4})-(\\d{1,2})-(\\d{1,2})(?!\\d)"
+    )
+
+    private val MONTHS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
     // Matches "Rs.500", "Rs 500", "INR500", "INR 500", "Amt 500", "Rs.1,500.00"
     private val AMOUNT_PATTERN = Pattern.compile(
@@ -182,7 +311,9 @@ object SmsParser {
     fun parseTransaction(
         smsBody: String,
         rules: List<CategoryRule> = emptyList(),
-        categories: List<Category> = emptyList()
+        categories: List<Category> = emptyList(),
+        // When the SMS arrived (epoch ms). Enables the future-date reminder check; null skips it.
+        receivedAt: Long? = null
     ): TransactionDetails? {
         val lowerBody = smsBody.lowercase()
 
@@ -218,22 +349,17 @@ object SmsParser {
             return null
         }
 
-        // Auto-debit/AutoPay reminders announce a FUTURE charge; the real debit is recorded later
-        // from its own SMS. Skip the reminder so the same charge isn't counted twice.
-        if (UPCOMING_DEBIT_PATTERN.matcher(lowerBody).find()) {
-            Log.d(TAG, "SKIP (upcoming auto-debit reminder): ${smsBody.take(80)}")
-            return null
-        }
-
-        // Premium/bill reminders quote what is owed, not what was taken; the real debit is its own
-        // SMS later. Skipped before the debit check because "Ignore if paid" reads as a debit verb.
-        if (PAYMENT_REMINDER_PATTERN.matcher(lowerBody).find()) {
-            Log.d(TAG, "SKIP (payment reminder): ${smsBody.take(80)}")
+        // Reminders and scheduled debits (EMI/NACH/AutoPay/premium/bill) announce money that WILL
+        // move; the real debit is recorded later from its own SMS. Skipped before the debit check
+        // because they carry debit words ("scheduled for debit", "Ignore if paid").
+        futureDebitReason(smsBody, receivedAt)?.let { reason ->
+            Log.d(TAG, "SKIP (reminder: $reason): ${smsBody.take(80)}")
             return null
         }
 
         val hasDebit = DEBIT_PATTERN.matcher(lowerBody).find() ||
-            ACCOUNTING_DEBIT_PATTERN.matcher(lowerBody).find()
+            ACCOUNTING_DEBIT_PATTERN.matcher(lowerBody).find() ||
+            isProcessedDebit(lowerBody)
         val hasTxn = TXN_PATTERN.matcher(lowerBody).find()
         if (!hasDebit && !hasTxn) {
             Log.d(TAG, "SKIP (no debit/txn keyword): ${smsBody.take(80)}")
@@ -247,6 +373,13 @@ object SmsParser {
         val hasCredit = CREDIT_PATTERN.matcher(lowerBody).find()
         if (hasCredit && !hasDebit) {
             Log.d(TAG, "SKIP (credit/refund): ${smsBody.take(80)}")
+            return null
+        }
+
+        // Refunds/reversals carrying a debit word ("…cancelled NACH debit has been processed") —
+        // recording them would add money that came BACK to spending.
+        if (isRefundNotice(lowerBody)) {
+            Log.d(TAG, "SKIP (refund/reversal): ${smsBody.take(80)}")
             return null
         }
 
@@ -281,6 +414,107 @@ object SmsParser {
 
         Log.d(TAG, "PARSED: amount=₹$amount merchant=$merchant categoryId=${result.categoryId} uncategorized=$uncategorized")
         return TransactionDetails(amount, merchant, result.categoryId, uncategorized)
+    }
+
+    /**
+     * Why [smsBody] is a reminder / scheduled-debit notice rather than a completed debit, or null
+     * when it reads as money that has already moved.
+     *
+     * 1. A completed debit verb ("debited", "spent", "Dr. from A/c" …) outside a future or
+     *    conditional phrase means a real transaction — nothing below can override it.
+     * 2. Reminder-only phrases ("scheduled for debit", "maintain sufficient funds") → reminder.
+     * 3. A balance/reference token ("Avl Bal", "UPI Ref") → real transaction.
+     * 4. Reminder wording from any [REMINDER_FAMILIES] family → reminder.
+     * 5. A date later than the day the SMS arrived ([receivedAt]) → reminder. This catches
+     *    wordings no keyword list has seen yet.
+     */
+    internal fun futureDebitReason(smsBody: String, receivedAt: Long? = null): String? {
+        val scrubbed = CONDITIONAL_PAID_PATTERN.matcher(
+            FUTURE_DEBIT_VERB_PATTERN.matcher(smsBody).replaceAll(" ")
+        ).replaceAll(" ")
+        if (COMPLETED_DEBIT_VERB_PATTERN.matcher(scrubbed).find() ||
+            ACCOUNTING_DEBIT_PATTERN.matcher(scrubbed).find() ||
+            isProcessedDebit(scrubbed)
+        ) return null
+
+        if (STRONG_REMINDER_PATTERN.matcher(smsBody).find()) return "reminder-only phrase"
+        if (TRANSACTION_PROOF_PATTERN.matcher(smsBody).find()) return null
+
+        REMINDER_FAMILIES.firstOrNull { (_, pattern) -> pattern.matcher(smsBody).find() }
+            ?.let { (family, _) -> return family }
+
+        if (receivedAt != null) {
+            val receivedDay = Instant.ofEpochMilli(receivedAt).atZone(ZoneId.systemDefault()).toLocalDate()
+            // Capped at a year ahead so a far-off date (maturity, card expiry) can't trip it.
+            extractDates(smsBody)
+                .firstOrNull { it.isAfter(receivedDay) && !it.isAfter(receivedDay.plusYears(1)) }
+                ?.let { return "future date $it" }
+        }
+        return null
+    }
+
+    /**
+     * Money coming back: a refund/reversal word, plus either an outcome ("credited", "processed" …)
+     * or no completed debit verb at all. A genuine debit that merely mentions refunds in passing
+     * ("Rs 500 debited … call us for a refund") keeps its debit verb and no outcome, so it stays.
+     */
+    private fun isRefundNotice(text: String): Boolean =
+        REFUND_PATTERN.matcher(text).find() &&
+            (REFUND_OUTCOME_PATTERN.matcher(text).find() ||
+                !(COMPLETED_DEBIT_VERB_PATTERN.matcher(text).find() || ACCOUNTING_DEBIT_PATTERN.matcher(text).find()))
+
+    /** A mandate/EMI/SI debit reported as completed without a debit verb ("EMI … has been processed"). */
+    private fun isProcessedDebit(text: String): Boolean =
+        PROCESSED_DEBIT_PATTERN.matcher(text).find() &&
+            DEBIT_INSTRUMENT_PATTERN.matcher(text).find() &&
+            !MONEY_BACK_PATTERN.matcher(text).find() &&
+            !MANDATE_SETUP_PATTERN.matcher(text).find()
+
+    /** Every calendar date written in [text], in the formats banks use. Invalid dates are dropped. */
+    internal fun extractDates(text: String): List<LocalDate> {
+        val dates = mutableListOf<LocalDate>()
+        DAY_MONTH_NAME_DATE.matcher(text).let { m ->
+            while (m.find()) {
+                val month = monthNumber(m.group(2)) ?: continue
+                dateOf(m.group(3), month, m.group(1))?.let(dates::add)
+            }
+        }
+        MONTH_NAME_DAY_DATE.matcher(text).let { m ->
+            while (m.find()) {
+                val month = monthNumber(m.group(1)) ?: continue
+                dateOf(m.group(3), month, m.group(2))?.let(dates::add)
+            }
+        }
+        NUMERIC_DATE.matcher(text).let { m ->
+            while (m.find()) {
+                val month = m.group(3).toIntOrNull() ?: continue
+                dateOf(m.group(4), month, m.group(1))?.let(dates::add)
+            }
+        }
+        ISO_DATE.matcher(text).let { m ->
+            while (m.find()) {
+                val month = m.group(2).toIntOrNull() ?: continue
+                dateOf(m.group(1), month, m.group(3))?.let(dates::add)
+            }
+        }
+        return dates
+    }
+
+    // "oct", "Oct", "october", "sept" → 10 / 9; anything that isn't a month name (or a 3+ letter
+    // prefix of one) → null, so words like "for" or "market" never read as months.
+    private fun monthNumber(token: String): Int? {
+        val t = token.lowercase()
+        if (t.length < 3) return null
+        val index = MONTHS.indexOf(t.take(3))
+        if (index < 0) return null
+        val fullName = java.time.Month.of(index + 1).name.lowercase()
+        return if (fullName.startsWith(t) || t == "sept") index + 1 else null
+    }
+
+    private fun dateOf(year: String, month: Int, day: String): LocalDate? {
+        val y = year.toIntOrNull()?.let { if (year.length == 2) 2000 + it else it } ?: return null
+        val d = day.toIntOrNull() ?: return null
+        return runCatching { LocalDate.of(y, month, d) }.getOrNull()
     }
 
     /**

@@ -45,7 +45,7 @@ class SyncManager(private val context: Context) {
                 val body = it.getString(bodyIndex)
                 val date = it.getLong(dateIndex)
                 
-                val transaction = SmsParser.parseTransaction(body, rules, categories)
+                val transaction = SmsParser.parseTransaction(body, rules, categories, receivedAt = date)
                 if (transaction != null) {
                     // A row the user edited before the fix lost its SMS identity (rawSms became the
                     // 'Manual Update' sentinel, dedupKey nulled), so plain dedup misses it and a

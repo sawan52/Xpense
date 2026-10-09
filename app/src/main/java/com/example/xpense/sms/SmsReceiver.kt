@@ -77,7 +77,7 @@ class SmsReceiver : BroadcastReceiver() {
             Log.d(TAG, "Duplicate — skipped")
             return
         }
-        val transaction = SmsParser.parseTransaction(body, rules, categories)
+        val transaction = SmsParser.parseTransaction(body, rules, categories, receivedAt = timestamp)
         if (transaction != null) {
             val expense = Expense(
                 amount = transaction.amount,
