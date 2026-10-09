@@ -4,6 +4,16 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1.4] - 2026-10-09
+
+### Fixed
+- **Payments to merchants whose name ends in ".pay" are recorded again.** HDFC card UPI alerts
+  such as "At ZeptoMarketplacePriva.pay / by UPI …" were skipped in 4.1.3, because the end of the
+  merchant name and the next line read as the bill reminder "pay by". "Pay by" now counts as a
+  reminder only when it gives a deadline ("Pay by 20-Oct-26"), not a merchant name or a payment
+  method ("pay by UPI / card"). Payments made while 4.1.3 was installed can be added back with
+  **Sync SMS history**.
+
 ## [4.1.3] - 2026-10-09
 
 ### Fixed

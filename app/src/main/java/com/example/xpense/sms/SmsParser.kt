@@ -231,7 +231,11 @@ object SmsParser {
         ),
         "reminder-wording" to Pattern.compile(
             "(?i)\\breminder\\b" +
-                "|\\bpay\\s+(?:by|now|before)\\b|\\bpay\\s+(?:your\\s+)?premium\\b" +
+                // "Pay by 20-Oct", "pay now" — but not a merchant handle ending in ".pay"
+                // ("At ZeptoMarketplacePriva.pay / by UPI …") or "pay by UPI/card" (a method).
+                "|(?<![.@/])\\bpay\\s+(?:now|before)\\b" +
+                "|(?<![.@/])\\bpay\\s+by\\s+(?!upi\\b|card\\b|cash\\b|cheque\\b|net\\s*banking\\b|debit\\b|credit\\b|wallet\\b)" +
+                "|\\bpay\\s+(?:your\\s+)?premium\\b" +
                 "|\\bignore\\s+if\\s+(?:already\\s+)?paid\\b" +
                 "|\\b(?:bill|statement)\\s+(?:\\S+\\s+){0,5}?generated\\b" +     // "bill of Rs 799 is generated"
                 "|\\b(?:total|minimum|min)\\.?\\s+(?:amount\\s+|amt\\.?\\s+)?due\\b|\\bamount\\s+due\\b" +

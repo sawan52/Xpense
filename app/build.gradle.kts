@@ -29,8 +29,8 @@ android {
         applicationId = "com.example.xpense"
         minSdk = 29
         targetSdk = 36
-        versionCode = 29
-        versionName = "4.1.3"
+        versionCode = 30
+        versionName = "4.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

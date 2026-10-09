@@ -382,7 +382,18 @@ class ReminderScenariosTest {
         r("4-R30", "Rs 1,999 debited for Swiggy One auto-renewal from card XX1234 on 09-10-2026.")
     )
 
-    private val rounds = listOf("Round 1" to round1, "Round 2" to round2, "Round 3" to round3, "Round 4" to round4)
+    // ── Round 5: formats found in the real SMS history (numbers changed) ───────────────────────
+    private val round5 = listOf(
+        // Merchant handle ending ".pay" followed by "by UPI" once read as the reminder "pay by".
+        r("5-R1", "Txn Rs.212.00\nOn HDFC Bank Card 1234\nAt ZeptoMarketplacePriva.pay\nby UPI 213200001111\nOn 13-04\nNot You?\nCall 18002586161/SMS BLOCK CC 1234 to 7308080808\n", at(4, 13)),
+        r("5-R2", "Txn Rs.229.00\nOn HDFC Bank Card 1234\nAt ZeptoMarketplacePriva.pay \nby UPI 100600002222\nOn 17-06\nNot You?\nCall 18002586161/SMS BLOCK CC 1234 to 7308080808\n", at(6, 17)),
+        r("5-R3", "Rs 499 paid to merchant@pay by UPI from A/c XX1234 on 09-10-2026."),
+        f("5-F1", "Dear Customer, your statement for AMEX Corporate Card **********1234 has been generated. Total payment of Rs.1178.82 is due by 20/12/25.Please ignore this msg if already paid.", at(11, 30)),
+        f("5-F2", "Hi, Bill for your Airtel Wi-Fi 20020000000 dated 24-Jan-2026 has been generated.\nAmount to be paid: Rs 1064.74\nDue Date: 06-Feb-2026", at(1, 24)),
+        f("5-F3", "Your Airtel bill debit of Rs 799. Please pay by card before 20-Oct-26.")
+    )
+
+    private val rounds = listOf("Round 1" to round1, "Round 2" to round2, "Round 3" to round3, "Round 4" to round4, "Round 5" to round5)
 
     private fun check(kind: Kind, expectRecord: Boolean) {
         val lines = mutableListOf<String>()
