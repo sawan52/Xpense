@@ -4,6 +4,28 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1.3] - 2026-10-09
+
+### Fixed
+- **Reminders and scheduled debits are no longer recorded as expenses.** SMS like "INSTALLMENT
+  of RS.9731 NACH scheduled for debit on 05-oct-26 … Please maintain sufficient funds" were
+  saved as spending even though no money had moved yet. Xpense now skips EMI, NACH, AutoPay,
+  standing-instruction, SIP, premium and bill reminders. It looks for:
+  - future wording ("will be debited", "will get debited", "to be deducted"),
+  - due dates and scheduling ("due on", "scheduled for", "upcoming", "next EMI", "tomorrow"),
+  - low-balance warnings ("maintain sufficient funds", "to avoid bounce charges"),
+  - mandate notices ("pre-debit notification") and bill wording ("pay by", "amount due"),
+  - and, for wording it hasn't seen before, a date later than the day the SMS arrived.
+
+  A real debit that also mentions the next due date ("Rs 9,731 debited … Next EMI due on
+  05-11-26") is still recorded. Reminders saved before this update stay in your history;
+  archive them if you don't want them counted.
+- **Refunds and reversals are no longer counted as spending.** "Refund of Rs 499 for your
+  cancelled NACH debit has been processed" was saved as a ₹499 expense.
+- **More completed debits are recorded:** "EMI … has been processed", "Standing Instruction …
+  was executed", "UPI AutoPay … was successful", "SIP executed successfully", "NACH debit
+  successful" and "Card XX1234 used for Rs …". Setting up a mandate is still not counted.
+
 ## [4.1.2] - 2026-09-30
 
 ### Fixed
