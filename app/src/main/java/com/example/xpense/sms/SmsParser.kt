@@ -284,6 +284,41 @@ object SmsParser {
         "(?i)debited\\s+towards\\s+.+?\\s+for\\s+([\\d,]+\\.?\\d{0,2})\\s+on\\b"
     )
 
+    // Fallback amount for SMS that use the rupee sign instead of Rs/INR ("₹250.00 debited …").
+    private val RUPEE_SYMBOL_AMOUNT_PATTERN = Pattern.compile(
+        "₹\\s?([\\d,]+\\.?\\d{0,2})"
+    )
+
+    // An amount whose label right before it is a balance or card limit ("Bal Rs", "Avl Bal: INR",
+    // "Avl Limit INR", "(Bal Rs"). Used only to look past a balance that comes before the spend.
+    private val BALANCE_LABEL_BEFORE_PATTERN = Pattern.compile(
+        "(?i)(?:bal|balance|limit|lmt)[\\s:.(\\-]*$"
+    )
+
+    // ── Merchant-name fallbacks (layered on top of the patterns in [extractMerchant]) ───────────
+
+    // Where a captured name runs on into the rest of the SMS: " on 17-10-26", " on card",
+    // " on your", " on Oct 17", " from A/c", " Avl Bal", ". UPI Ref", ". Total Avail.bal" …
+    // Cut there so "rahul@okaxis on 17-10-26." reads "rahul@okaxis".
+    private val NAME_TAIL_PATTERN = Pattern.compile(
+        "(?i)\\s+(?:on\\s+(?:\\d|card\\b|your\\b|[a-z]{3}[\\s\\-]?\\d)|from\\s|avl\\b|avbl\\b)" +
+            "|\\.\\s+(?:upi|avl|avbl|ref|not|call|info|bal|total)\\b"
+    )
+
+    // A capture that is clearly not a payee: a phone/reference number followed by more words
+    // ("9264092640 to block UPI"), the "block" instruction, a date ("On 2026-10-17", caught when
+    // "to" matched inside "ZOMATO"), or the bank's own "UPI txn to …"/"UPI to …" phrasing.
+    private val JUNK_NAME_PATTERN = Pattern.compile(
+        "(?i)^(?:\\d{6,}\\s|block\\b|on\\s+\\d|upi\\s+(?:txn|to)\\b|upi$)"
+    )
+
+    // A name the primary capture cut short at "*", "'" or "&" ("PTM*FLIPKART" read as "PTM",
+    // "MCDONALD'S" as "MCDONALD") is re-read from the same start with these characters allowed.
+    private const val NAME_JOINERS = "*'&"
+    private val EXTENDED_NAME_PATTERN = Pattern.compile(
+        "[A-Za-z0-9][A-Za-z0-9 .&'*@/\\-]*"
+    )
+
     // Rejects bank/account *phrases* the at/to/for capture can grab ("transferred to your account",
     // "paid to bank"). Word boundaries are deliberate: a UPI handle suffix like "merchant@hdfcbank"
     // has no word boundary before "bank", so it is NOT rejected — only standalone words are.
@@ -393,12 +428,18 @@ object SmsParser {
         val amountMatcher = AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
             ?: DEBITED_BY_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
             ?: DEBITED_TOWARDS_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
+            // Fallback: "₹250.00 debited …" — tried only when no Rs/INR/Amt amount exists at all.
+            ?: RUPEE_SYMBOL_AMOUNT_PATTERN.matcher(smsBody).takeIf { it.find() }
         if (amountMatcher == null) {
             Log.d(TAG, "SKIP (no amount): ${smsBody.take(80)}")
             return null
         }
 
-        val amountStr = amountMatcher.group(1)?.replace(",", "") ?: return null
+        // Fallback on top of the first amount: when that first amount is a BALANCE / LIMIT figure
+        // ("(Bal Rs 12,000.00) is debited with Rs 500.00"), use the next amount that isn't one.
+        // When the first amount isn't labelled as a balance, nothing changes.
+        val amountStr = (if (isBalanceFigure(smsBody, amountMatcher.start())) nextNonBalanceAmount(smsBody) else null)
+            ?: amountMatcher.group(1)?.replace(",", "") ?: return null
         val amount = amountStr.toDoubleOrNull() ?: return null
         if (amount <= 0) {
             Log.d(TAG, "SKIP (zero amount): ${smsBody.take(80)}")
@@ -466,6 +507,19 @@ object SmsParser {
         REFUND_PATTERN.matcher(text).find() &&
             (REFUND_OUTCOME_PATTERN.matcher(text).find() ||
                 !(COMPLETED_DEBIT_VERB_PATTERN.matcher(text).find() || ACCOUNTING_DEBIT_PATTERN.matcher(text).find()))
+
+    /** True when the amount starting at [amountStart] is labelled as a balance or card limit. */
+    private fun isBalanceFigure(smsBody: String, amountStart: Int): Boolean =
+        BALANCE_LABEL_BEFORE_PATTERN.matcher(smsBody.substring(maxOf(0, amountStart - 16), amountStart)).find()
+
+    /** The first Rs/INR/Amt amount that is not a balance/limit figure, or null if every one is. */
+    private fun nextNonBalanceAmount(smsBody: String): String? {
+        val m = AMOUNT_PATTERN.matcher(smsBody)
+        while (m.find()) {
+            if (!isBalanceFigure(smsBody, m.start())) return m.group(1)?.replace(",", "")
+        }
+        return null
+    }
 
     /** A mandate/EMI/SI debit reported as completed without a debit verb ("EMI … has been processed"). */
     private fun isProcessedDebit(text: String): Boolean =
@@ -569,13 +623,40 @@ object SmsParser {
             // patterns found nothing valid, leaving every existing extraction untouched.
             // The name may start with a digit ("At *28ds@pty" — a Paytm handle); an all-digit
             // capture is still rejected below by the "must contain a letter" check.
-            Pattern.compile("(?i)(?:at|to|for)\\s+[.*_\\-]+\\s*([A-Za-z0-9][A-Za-z0-9 .&'/@*\\-]{2,})")
+            Pattern.compile("(?i)(?:at|to|for)\\s+[.*_\\-]+\\s*([A-Za-z0-9][A-Za-z0-9 .&'/@*\\-]{2,})"),
+
+            // ── Fallbacks: tried only when every pattern above found nothing usable ──
+            // Axis / Canara UPI: "UPI/P2M/628912345678/SWIGGY".
+            Pattern.compile("(?i)\\bUPI/(?:[A-Z0-9]{2,6}/)?\\d{6,}/([A-Za-z0-9][A-Za-z0-9 .&'*@\\-]{1,40})"),
+            // ICICI card: "spent using ICICI Bank Card XX1234 on 17-Oct-26 on IND*AMAZON".
+            // Requires the aggregator "*" so a date after "on" is never read as a name.
+            Pattern.compile("(?i)\\bon\\s+([A-Za-z0-9]{2,}\\*[A-Za-z0-9][A-Za-z0-9 .&'*@\\-]*)"),
+            // IndusInd: "is debited for INR 299.00 towards NETFLIX on 17/10/2026".
+            Pattern.compile("(?i)\\btowards\\s+([A-Za-z][A-Za-z0-9 .&'*@\\-]{1,40}?)(?=\\s+on\\b|\\s+for\\b|[.,]|$)"),
+            // IDFC: "for UPI txn to SWIGGY. UPI Ref …".
+            Pattern.compile("(?i)\\btxn\\s+to\\s+([A-Za-z0-9][A-Za-z0-9 .&'*@\\-]{1,40})"),
+            // Names with "&", "'" or "*" the primary at/to class can't start ("at H&M").
+            Pattern.compile("(?i)\\b(?:at|to)\\s+([A-Za-z0-9][A-Za-z0-9 .&'*@/\\-]{1,40})")
         )
         for (p in patterns) {
             val m = p.matcher(smsBody)
             if (m.find()) {
+                var name = m.group(1) ?: continue
+                // Fallback: the capture stopped at "*", "'" or "&" inside the name ("PTM*FLIPKART"
+                // read as "PTM") — re-read from the same start with those characters allowed.
+                val end = m.end(1)
+                if (end + 1 < smsBody.length && smsBody[end] in NAME_JOINERS && smsBody[end + 1].isLetterOrDigit()) {
+                    val ext = EXTENDED_NAME_PATTERN.matcher(smsBody).region(m.start(1), smsBody.length)
+                    if (ext.lookingAt()) name = ext.group()
+                }
                 // Stop at a line break so a merchant on its own line doesn't swallow the next line.
-                val raw = m.group(1)?.substringBefore("\n")?.trim() ?: continue
+                var raw = name.substringBefore("\n").trim()
+                // Fallback: cut a tail the capture ran on into (" on 17-10-26", " from A/c", ". UPI Ref").
+                val tail = NAME_TAIL_PATTERN.matcher(raw)
+                if (tail.find() && tail.start() > 0) raw = raw.substring(0, tail.start())
+                raw = raw.trimEnd(' ', '.', ',', ';', ':', '-')
+                // Fallback guard: never keep a phone number, the "block" instruction or a date.
+                if (JUNK_NAME_PATTERN.matcher(raw).find()) continue
                 // Keep the name up to and including "via UPI"; otherwise fall back to a 25-char cap.
                 val viaIdx = raw.indexOf(VIA_UPI_MARKER, ignoreCase = true)
                 val candidate = if (viaIdx >= 0) {

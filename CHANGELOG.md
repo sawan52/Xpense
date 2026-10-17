@@ -12,6 +12,20 @@ All notable changes to Xpense are documented here. The format is based on
   Xpense already skipped leading noise like "*" or ".." but then expected a letter; the name
   may now start with a digit. Payments already saved as "Unknown" are renamed by
   **Categories → Re-apply rules**.
+- **Amounts written with ₹ are recorded.** "₹250.00 debited …" was skipped because only "Rs",
+  "INR" and "Amt" were recognised.
+- **The spend is used, not the balance, when the balance comes first.** "(Bal Rs 12,000.00) is
+  debited with Rs 500.00" was saved as ₹12,000.
+- **Cleaner merchant names across more banks.** Added as fallbacks behind the existing rules,
+  which still run first:
+  - names stop where the merchant ends, instead of running on into " on 17-10-26", " on card",
+    " from A/c" or ". UPI Ref" (Kotak, Federal, SBI card, Amazon Pay ICICI, Paytm Payments Bank);
+  - "PTM*FLIPKART", "RAZ*SHRI RAM STORES", "MCDONALD'S" and "H&M" are no longer cut short;
+  - payees are read from "UPI/P2M/…/SWIGGY" (Axis, Canara), "on IND*AMAZON" (ICICI card),
+    "towards NETFLIX" (IndusInd) and "UPI txn to SWIGGY" (IDFC);
+  - a phone number or the "Fwd this SMS to … to block UPI" line is never used as the name
+    (PNB now shows "Unknown").
+- Help → Automatic SMS tracking describes the reminder skipping and the payee names.
 
 ## [4.1.4] - 2026-10-09
 
