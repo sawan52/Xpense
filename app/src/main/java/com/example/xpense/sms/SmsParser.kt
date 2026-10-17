@@ -567,7 +567,9 @@ object SmsParser {
             // one noise char ([.*_-]) so it ONLY targets the prefixed case and never overlaps the
             // clean "at Swiggy" handling above. Listed LAST so it runs only when the stricter
             // patterns found nothing valid, leaving every existing extraction untouched.
-            Pattern.compile("(?i)(?:at|to|for)\\s+[.*_\\-]+\\s*([A-Za-z][A-Za-z0-9 .&'/@*\\-]{2,})")
+            // The name may start with a digit ("At *28ds@pty" — a Paytm handle); an all-digit
+            // capture is still rejected below by the "must contain a letter" check.
+            Pattern.compile("(?i)(?:at|to|for)\\s+[.*_\\-]+\\s*([A-Za-z0-9][A-Za-z0-9 .&'/@*\\-]{2,})")
         )
         for (p in patterns) {
             val m = p.matcher(smsBody)

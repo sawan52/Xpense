@@ -997,6 +997,20 @@ class SmsParserTest {
     }
 
     @Test
+    fun testHdfcCardMerchantWithStarAndDigitLedHandleExtracted() {
+        // Reported: a Paytm merchant handle "*28ds@pty" starts with "*" then a DIGIT. The primary
+        // capture can't start at "*", and the noise fallback used to demand a letter after it, so
+        // the payment was saved under "Unknown".
+        val sms = "Txn Rs.50.00\nOn HDFC Bank Card 1234\nAt *28ds@pty \nby UPI 9999999999\nOn 17-10\n" +
+            "Not You?\nCall 1234567890/SMS BLOCK CC 1234 to 8754698520"
+        val txn = SmsParser.parseTransaction(sms, emptyList(), testCategories)
+
+        assertNotNull(txn)
+        assertEquals(50.0, txn?.amount)
+        assertEquals("28ds@pty", txn?.merchant)
+    }
+
+    @Test
     fun testCleanAtMerchantUnaffectedByNoiseFallback() {
         // Sanity: a clean "at <merchant>" with no punctuation noise is still handled by the primary
         // pattern exactly as before (the new noise-skipping fallback must not interfere).

@@ -4,6 +4,15 @@ All notable changes to Xpense are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows a
 `major.minor` version scheme tracked by `versionName` in `app/build.gradle.kts`.
 
+## [4.1.5] - 2026-10-17
+
+### Fixed
+- **Merchant names that start with a symbol and a digit are read correctly.** HDFC card UPI
+  alerts such as "At *28ds@pty / by UPI …" (a Paytm merchant ID) were saved under "Unknown".
+  Xpense already skipped leading noise like "*" or ".." but then expected a letter; the name
+  may now start with a digit. Payments already saved as "Unknown" are renamed by
+  **Categories → Re-apply rules**.
+
 ## [4.1.4] - 2026-10-09
 
 ### Fixed
