@@ -159,7 +159,7 @@ private val topics = listOf(
         "Automatic SMS tracking", Icons.Rounded.Sms, Color(0xFF22D3EE),
         "Xpense reads incoming bank SMS and records your spending without any typing.",
         listOf(
-            "It captures debits and payments, and skips OTPs, credits and refunds, credit-card bill payments, mutual-fund confirmations and payment reminders, so nothing is double-counted.",
+            "It captures debits and payments, and skips OTPs, credits and refunds, credit-card bill payments, credit-card EMI-conversion offers, mutual-fund confirmations and payment reminders, so nothing is double-counted.",
             "Reminders about money that hasn't moved yet are skipped too: EMI, AutoPay, NACH and standing-instruction notices, bill due dates and \"maintain sufficient balance\" alerts. The real debit is recorded when its own SMS arrives.",
             "The payee name is read from the SMS, including UPI handles (name@bank), card merchants like PTM*FLIPKART and amounts written with ₹. If a payment shows as \"Unknown\", Categories → Re-apply rules tries again.",
             "Duplicate messages are ignored automatically.",

@@ -7,6 +7,16 @@ All notable changes to Xpense are documented here. The format is based on
 ## [4.1.5] - 2026-10-17
 
 ### Fixed
+- **Credit-card EMI-conversion offers are no longer recorded as spends.** "Convert your
+  transaction of INR 17332 into easy monthly EMIs … with FLEXI EMI on your Axis Bank Credit
+  Card. Convert now. *T&Cs." was saved as a second ₹17,332 spend (and showed up in Insights),
+  because it contains "transaction" and an amount. Offers and EMI conversion notices from Axis
+  (Flexi EMI), HDFC (SmartEMI), ICICI (No Cost EMI), SBI (FlexiPay), Kotak, IDFC and RBL are now
+  skipped, as are "converted into 12 EMIs" and "EMI cancelled, billed in full" notices — the
+  purchase itself was already recorded from its own SMS. A real spend alert is still recorded
+  when it has an EMI footer or an EMI-like merchant name ("Txn Rs.500 On HDFC Bank Card At
+  T&C SALON", "Dr. from A/C … Convert to EMI"). An offer already saved can be deleted from the
+  transaction list.
 - **Merchant names that start with a symbol and a digit are read correctly.** HDFC card UPI
   alerts such as "At *28ds@pty / by UPI …" (a Paytm merchant ID) were saved under "Unknown".
   Xpense already skipped leading noise like "*" or ".." but then expected a letter; the name
@@ -25,7 +35,7 @@ All notable changes to Xpense are documented here. The format is based on
     "towards NETFLIX" (IndusInd) and "UPI txn to SWIGGY" (IDFC);
   - a phone number or the "Fwd this SMS to … to block UPI" line is never used as the name
     (PNB now shows "Unknown").
-- Help → Automatic SMS tracking describes the reminder skipping and the payee names.
+- Help → Automatic SMS tracking describes the reminder and EMI-offer skipping and the payee names.
 
 ## [4.1.4] - 2026-10-09
 

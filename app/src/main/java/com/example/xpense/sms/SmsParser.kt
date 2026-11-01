@@ -102,6 +102,39 @@ object SmsParser {
         "(?i)\\brecharge\\s+of\\s+(?:rs\\.?|inr)\\s*[\\d,.]+\\s+is\\s+success"
     )
 
+    // Card-issuer EMI-CONVERSION OFFERS ("Convert your transaction of INR 17332 into easy monthly
+    // EMIs with tenure up to 48 months with FLEXI EMI on your Axis Bank Credit Card. Convert now.
+    // *T&Cs."). They quote a purchase that was already recorded from its own spend SMS, and the
+    // word "transaction" plus the amount made them parse as a second spend. Only applied when the
+    // SMS has no real-spend evidence ([REAL_SPEND_EVIDENCE_PATTERN] or a completed debit verb), so
+    // a real alert with a "convert to EMI" footer ("Spent Rs 25,000 … To convert to EMI …") or an
+    // EMI-ish merchant name ("Txn Rs.500 On HDFC Bank Card At T&C SALON") is still recorded.
+    // "EMI" also matches "SmartEMI"/"FlexiEMI"/"EasyEMI", "EMI's" and "E.M.I.".
+    private const val EMI_TOKEN =
+        "\\b(?:smart|flexi|easy)?(?:e\\.m\\.i\\b\\.?|emi(?:s|'s)?\\b)"
+    private val EMI_OFFER_PATTERN = Pattern.compile(
+        // "Convert <anything in the same sentence> into/to <≤3 words> EMI". A "." only ends the
+        // sentence when a space follows it, so "Rs.17,332" and "17332.00" don't break the span.
+        "(?i)\\bconvert\\w*\\b(?:(?!\\.\\s|[!?\\n])[\\s\\S]){0,160}?\\b(?:in(?:to)?|to)\\s+(?:\\S+\\s+){0,3}?$EMI_TOKEN" +
+            "|\\b(?:easy|flexi|flexible|smart)\\s*(?:monthly\\s+)?emis?\\b" +      // "easy monthly EMIs", "FLEXI EMI", "SmartEMI"
+            "|\\bavail\\s+(?:\\S+\\s+){0,2}?$EMI_TOKEN" +                           // "Avail EMI on your transaction"
+            "|\\bemis?\\s+(?:with\\s+)?tenure\\b|\\btenure\\s+(?:of\\s+)?up\\s*to\\b" +
+            // EMI on an already-recorded purchase being cancelled / closed ("…billed in full")
+            "|$EMI_TOKEN(?:(?!\\.\\s)[\\s\\S]){0,60}?\\b(?:cancell?ed|foreclosed|pre[\\s-]?closed)\\b" +
+            "|\\bbilled\\s+in\\s+full\\b" +
+            "|\\bconvert\\s+now\\b|\\bt\\s*&\\s*cs?\\b|\\bt&c\\s+apply\\b"
+    )
+
+    // Proof that an SMS reports a spend that has already happened, even without a debit verb:
+    // card alerts in "Txn Rs.X On <bank> Card … At <merchant>" form (HDFC), the "Dr. from A/C"
+    // accounting form (Bank of Baroda), and post-transaction balance / limit / UPI-ref lines.
+    // An EMI offer never carries these, so they keep real spends out of the offer filter.
+    private val REAL_SPEND_EVIDENCE_PATTERN = Pattern.compile(
+        "(?i)\\btxn\\s+(?:rs\\.?|inr|₹)\\s*[\\d,]+(?:\\.\\d+)?\\s+on\\s+(?:\\S+\\s+){0,4}?card\\b" +
+            "|\\bdr\\.?\\s+from\\s+a/?c\\b" +
+            "|\\b(?:avl|avbl|available)\\.?\\s*(?:bal|balance|limit|lmt)\\b|\\bupi\\s*ref\\b"
+    )
+
     // ── Reminders / scheduled debits ────────────────────────────────────────────────────────────
     // Auto-debit, EMI, NACH, AutoPay, premium and bill REMINDERS announce money that WILL move
     // ("INSTALLMENT of RS.9731 NACH scheduled for debit on 05-oct-26 … Please maintain sufficient
@@ -385,6 +418,17 @@ object SmsParser {
         // Operator recharge confirmations: only the bank's debit SMS records a recharge.
         if (RECHARGE_CONFIRMATION_PATTERN.matcher(lowerBody).find()) {
             Log.d(TAG, "SKIP (recharge confirmation): ${smsBody.take(80)}")
+            return null
+        }
+
+        // EMI-conversion / marketing offers quote an already-recorded purchase. A completed debit
+        // verb ("spent", "debited") or a card-alert / balance line means it is a real alert with a
+        // promo footer (or an EMI-ish merchant name), so keep those.
+        if (EMI_OFFER_PATTERN.matcher(smsBody).find() &&
+            !COMPLETED_DEBIT_VERB_PATTERN.matcher(smsBody).find() &&
+            !REAL_SPEND_EVIDENCE_PATTERN.matcher(smsBody).find()
+        ) {
+            Log.d(TAG, "SKIP (EMI/promotional offer): ${smsBody.take(80)}")
             return null
         }
 

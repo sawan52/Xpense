@@ -73,6 +73,8 @@ class ReminderScenariosTest {
         r("1-R15", "Your account has been debited towards Google for 59.00 on 09/10/2026 (UPI Ref no 123456)."),
         r("1-R16", "Your EMI of Rs 3,250 for loan 778899 has been successfully processed on 09-10-2026."),
         r("1-R17", "Rs 99 deducted for SMS alert charges. This is not a reminder."),
+        // Real card spend with an EMI-conversion footer is still a spend
+        r("1-R18", "Spent INR 25,000 on Axis Bank Card XX1234 at CROMA on 09-10-26. Convert this into easy EMIs, SMS EMI to 5676782. T&C apply."),
 
         n("1-N1", "Your A/c X1234 has been credited by Rs 2000.0 on 09-Oct-26."),
         n("1-N2", "123456 is your OTP for txn of Rs 500 at Amazon.")
@@ -309,7 +311,11 @@ class ReminderScenariosTest {
         n("3-N8", "Your UPI AutoPay mandate of Rs 199 for Netflix has been created successfully."),
         n("3-N9", "Your payment of Rs 1,607 for your iPru policy has been successfully debited. Team Policybazaar"),
         n("3-N10", "Recharge of INR 239 is successful for your Jio number 98XXXXXX12."),
-        n("3-N11", "Your UPI AutoPay mandate of Rs 199 for Netflix registration is successful.")
+        n("3-N11", "Your UPI AutoPay mandate of Rs 199 for Netflix registration is successful."),
+        // EMI-conversion offers quote an already-recorded purchase
+        n("3-N12", "Convert your transaction of INR 17332 into easy monthly EMIs with tenure up to 48 months with FLEXI EMI on your Axis Bank Credit Card. Convert now. *T&Cs."),
+        n("3-N13", "Your transaction of Rs 24,999 at AMAZON on HDFC Bank Credit Card XX1234 is eligible for EMI. Convert it into EMI at 13% p.a. Visit hdfcbank.com. T&C apply."),
+        n("3-N14", "Good news! Convert your recent txn of Rs.15,000 to No Cost EMI on your ICICI Bank Credit Card. SMS EMI to 5676766.")
     )
 
     // ── Round 4: fresh wordings (would/getting/renewed/last date/expected/soon …) ───────────────
